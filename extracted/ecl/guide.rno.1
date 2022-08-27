@@ -1,0 +1,45 @@
+.c
+Installation Guide for TOPS-20 ECL
+.s.p
+The accompanying 9-track tape is written at 1600 BPI in TOPS-10 BACKUP
+format. I intend to include two full copies of the system (in successive
+"save sets") in case there are difficulties reading one.
+.p
+The pseudodevice designator "ECL:" is treated specially when
+encountered at the beginning of a file name. It is assumed to refer
+to the directory
+that has been chosen as the ECL library area.  The system
+you are getting has been initialized with "ECL:" defined to be
+"PS:<CHEATHAM-1>".  When you have decided where the system files will
+live, you should reinitialize and save ECL as follows:
+.s.nf
+(connect to ECL library directory)
+RUN ECL
+POKE(ECLDIR, "new-directory-designator");
+LOADB "TRAP";
+(system will exit to monitor level)
+SAVE ECL.EXE <esc><esc><ret>
+.f.p
+In addition to mapping explicit uses of "ECL:" to the special
+library directory, ECL expects to find its error message file ECLSYS.ERR
+and the version of TECO invoked by the TECO and MAKE routines
+(called ANTE.EXE) in that area.
+.p
+MAKECL.ECL is the file that was used to initialize ECL.EXE originally.
+Looking at it, you will note that the unparser (UP) and environment
+back-tracer (BT) are the only library packages resident in the basic
+system.  You may choose to LOADB others before saving your own
+version.
+.p
+ECL has been used successfully under versions of TOPS-20
+through version 4. Since it makes use of the TOPS-10 compatibility
+package, only the first six file name characters and the first three
+file extension characters will be significant in file designators,
+and generation numbers are not allowed. Directory names such as
+<MUMBLE> are correctly parsed and translated, however.
+.p
+The version of TECO used with ECL is called ANTE.  It is a pure
+TOPS-20 program, invoked by ECL as an inferior fork.  It can
+also be run as a stand-alone editor from monitor level.  The
+file ANTE.DOC describes the differences between ANTE and
+standard TECOs.

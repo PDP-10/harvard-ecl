@@ -1,0 +1,851 @@
+
+
+
+ 
+
+
+
+
+
+                    RERITE USER'S GUIDE
+
+
+
+
+
+                     William R. Conrad
+
+
+
+
+
+                      August 15, 1976
+
+
+
+
+
+                     Harvard University
+
+        Center for Research in Computing Technology
+
+                  Cambridge, Massachusetts
+
+
+
+
+
+This work was supported in part  by  the  Advanced  Research
+
+Projects Agency under contract N00039-76-C-0168 and Rome Air
+
+Developement Center under contract F-30602-74-C-0032.
+
+RERITE USER'S GUIDE                                   Page 2
+
+
+ 
+
+
+
+
+
+
+
+        Introduction
+
+
+        1.  General Rewrite Format
+        2.  Match Variables
+        3.  Conditional Matching
+        4.  Complex Patterns
+        5.  Pattern Matching Facility
+        6.  Replacements and Macro Substitution
+        7.  Builtin "Rewrites"
+        8.  Program Operation
+
+
+Appendix A: Illustrative Example
+Appendix B: Summary of Operators
+Appendix C: Algorithms and Data Format
+RERITE USER'S GUIDE                                   Page 3
+
+
+ 
+
+
+
+
+                        Introduction
+
+     The rewriting package is a collection  of  programs  to
+facilitate the definition and application of rewriting rules
+to EL1-like source programs.  By providing  the  ability  to
+rewrite programs written in very high level design languages
+into code  executable  by  the  ECL  interpreter,  top  down
+developement   is  greatly  aided.   Higher  level  language
+contructs specifically designed by the  programmer  for  his
+problem  area  can  be  used  to express his algorithms in a
+clear and concise manner.   These  constructs  can  then  be
+automatically rewritten into executable code.
+
+     A  rewriting  rule  is  composed  of  three  parts,   a
+syntactic  pattern,  a semantic predicate, and a replacement
+pattern.  For  a  program  fragment  to  be  rewritten,  the
+fragment  must  match the syntactic pattern structurally and
+the semantic predicate must  evaluate  to  true.   With  the
+addition of a symbolic evaluator in the future, the semantic
+predicate part can be used to  provide  very  discriminating
+rewrites.  In the meanwhile, some sensitivity to the context
+in which a pattern is matched can  be  provided  by  use  of
+small  special  purpose  analysis  routines  in the semantic
+predicate.
+
+     The reader's attention  is  drawn  to  the  example  in
+Appendix  A.   It  should be examined quickly before reading
+the rest of the guide in order to get the general flavor  of
+how the rewriting package is used.  After the guide has been
+read, the example may be read again for details.
+RERITE USER'S GUIDE                                   Page 4
+
+
+1.  General Rewrite Format
+
+     A rewriting rule consists of a left hand side which  is
+a  pattern  and  an optional boolean expression proceeded by
+WHERE, and a right  hand  side  which  is  the  replacement.
+Between the left hand side and the right hand side is either
+the  operator  "<->"  or  the  operator  "<--->".   Rewrites
+defined  with  the  "<--->" operator are applied only during
+the first pass over a routine; this allows the definition of
+otherwise recursive rewrites.  The general form of a rewrite
+definition is thus:
+
+  <syntactic pattern>  WHERE
+        <semantic predicate> <-> <replacement>
+
+Each of these parts is an ECL FORM, which  is  to  say  that
+they  are  EL1  program fragments which can be parsed by the
+ECL parser.
+
+     The rewriting mechanism  first  makes  a  copy  of  the
+routine  being rewritten, and then continues to iterate over
+that copy until application of all current  rewriting  rules
+results in no further change.  Thus the pattern of a rewrite
+rule need not match fragments of the routine being rewritten
+until  after  several  passes.  Rewriting rules may occur at
+top level and have a global effect, or they may occur in the
+body  of  a  routine and be local to the block in which they
+are defined.  The scoping is identical in nature to that  of
+a  local  variable  created  by  a  DECL;  e.  g., the local
+rewrite definition supersedes any  previous  defintions  for
+the  same  pattern from the time it is encountered until the
+block in which it is  defined  is  exited.   Normally,  such
+scoped  rewrites  are  removed  from the copy of the program
+being rewritten.  If the KEEPRW option (see  section  8)  is
+true, they will, however, be retained.
+
+2.  Match Variables
+
+     A match variable is a wild-card element  in  a  pattern
+which will match any arbitrary element in the trial form the
+first time it is encounted.  A match variable is said to  be
+bound  to  the  element  it  first  matches.   After a match
+variable is bound, it can only match an element in the trial
+form  which is list equal to its current binding.  Two forms
+are said to be  list  equal  if  they  have  the  same  tree
+structure, and the values of their terminal nodes are equal.
+
+     The operator $$ followed by an identifier  is  used  to
+indicate  a match variable, and the identifier is said to be
+the variable.  Thus in the following pattern, X  and  Y  are
+match variables.
+                      F($$X, $$Y, $$X)
+RERITE USER'S GUIDE                                   Page 5
+
+
+If the trial form were
+             F([) A + B (], G(P), [) A + B (])
+
+X would be bound to the form, [) A + B  (],  and  Y  to  the
+form, G(P), and the whole match would succeed.  If the trial
+form had been
+             F([) A + B (], G(P), [) A + C (])
+
+the match would have failed because the second occurrence of
+the  match  variable,  X,  was  not list equal to the first.
+Other match variable operators, ??, &$, and &?, and the  use
+of   match   variables  in  more  complicated  patterns  are
+discussed in the section 4.
+
+     The $$ operator when  evaluated  during  the  rewriting
+process  (as  opposed to being a match variable indicator in
+patterns and replacements) takes a SYMBOL UNEVAL and returns
+the  current  binding  of  the  symbol  as  a match variable
+whether matched by $$ or ??.  If the symbol has no  binding,
+then  the  symbol "NOT BOUND" is returned.  This feature may
+be used in conditional  match  functions  and  the  semantic
+predicate  part of a rewriting rule.  These bindings are the
+very same ones used for the substitution of match  variables
+in replacement patterns (see section 6).
+
+3.  Conditional Matching
+
+     Conditional  match  variables  are  specified  in   the
+following  way.   The  operator  $$  or ??  is followed by a
+function call with the  match  variable  identifier  as  the
+first parameter of the function call.  Thus the pattern
+
+                F($$IS\BLOCK(X), $$Y, $$X)
+
+would result in the function, IS\BLOCK,  being  called  with
+the  proposed  form  for binding to X as the first argument.
+Presumably,  the  function,  IS\BLOCK,  will   examine   X's
+potential  binding  and  return  true  if  it  is  indeed an
+instance of a block.  The conditional match function's first
+argument  must be a FORM and its result must be a BOOL.  The
+function may take more than one argument if desired.
+
+     Note that the second instance of X in  the  pattern  as
+written  above will not invoke IS\BLOCK.  In many cases, due
+to the list equal requirement for  match  variables,  it  is
+unnecessary  to  call  the  conditional  function again.  In
+those cases where it is desired, the second  and  subsequent
+occurences  of  the  match  variable may be written so as to
+invoke either the same or a different conditional  function.
+An example is
+          F($$IS\BLOCK(X), G(P), $$IS\SHARED(X))
+
+where IS\SHARED might check to see if the  second  occurence
+of  X  is  same  identical block that was bound to the first
+occurence of X.
+RERITE USER'S GUIDE                                   Page 6
+
+
+4.  Complex Patterns
+
+     The $$ operator can also be used to match statements in
+in  a  block  as  well as arguments in a function call.  For
+example, the syntactic pattern, [) A + B; $$X;  D  +  E  (],
+would  match  [)  A  +  B;  I  *  J; D + E (] with the match
+variable, X, being bound to I * J.  The $$ operator causes a
+match  variable  to  match only one element in a list.  Thus
+[) $$X  (]  matches   only   one-statement   blocks.    This
+deficiency  is  remedied  by  the  introduction  of  the  ??
+operator.
+
+     The ??  operator in  its  undelimited  use  causes  the
+match  variable  to  match  the remainder of a whole list of
+elements.  Thus [) ??X (] will match any block,  and  F(??X)
+will  match  any  function call of F, no matter how long its
+argument list is.  An example of a rewriting rule using this
+feature is
+
+      [)F(A,??X);G(B,??X);??Y(] <-> H(A+B,??X,[)??Y(])
+
+which  would  rewrite   [)F(A,B,C);G(B,B,C);A+B;D*E(]   into
+H(A+B,B,C,[)A+B;D*E(]).    To  recapitulate,  $$  matches  a
+single list element whether in an  argument  list  or  in  a
+block.   The ??  operator in its undelimited use matches the
+entire remainder of list whether it is the the  tail  of  an
+argument list or the remaining statements in a block.
+
+     A logical and natural extension to the above use of the
+??   operator  is to provide a way to delimit the list which
+is bound to the  ??   match  variable.   This  extension  is
+provided  by specifying further elements in a pattern to the
+right of the  ??   match  variable  to  be  delimited.   The
+meaning  of such a pattern is that the ??  match variable is
+to be bound to the remainder of a list up to the point where
+a  list element matches the delimiter.  The delimiter may be
+an actual statement such as A + B, or it may be a  $$  match
+variable.   An example is the pattern, [) ??A; B+C; $$B; ??C
+(], which would match any block containing B + C followed by
+at  least  one  statement.   If  it  were  matched  with  [)
+1+2;3+4;B+C;5+6;7+8;9+0 (], A would be bound to  1+2;3+4,  B
+to 5+6, and C to 7+8;9+0.
+
+     Because of the special parsing accorded statements in a
+CASE block, $$ and ??  cannot be used to designate an entire
+statement or the remaining statements in a CASE block.   The
+&$  and  &?  operators have been provided form this purpose.
+The example below will illustrate their use.
+
+CASE[] A=>B; &$X; &?Y END <-> CASE[] P=>Q; &?Y; &$X END;
+
+would rewrite CASE[] A=>B;C=>D;E=>F;G=>H;I=>J;K=>L END into
+CASE[] P=>Q;E=>F;G=>H;I=>J;K=>L;C=>D END.  Note that the  &$
+operator  bound  X to the single statement C=>D while the &?
+operator bound Y to the remaining statements.
+RERITE USER'S GUIDE                                   Page 7
+
+
+     The effect of the RAISE  operator  when  applied  to  a
+BEGIN  or  CASE  block  is to remove the block header and to
+enter the body of the block as the pattern  or  replacement.
+Introduced  initially  as  a means to allow entry of rewrite
+patterns and replacements which ECL syntax requires to be at
+statement  level, it also allows relatively convenient entry
+of multiple-statement patterns and replacements, as well  as
+the replacement of a single statement by several without the
+introduction of an (unwanted) extra block level.  RAISE must
+be followed by either a BEGIN, REPEAT, or CASE block, and if
+a RAISE CASE ...  is used on one side of a rewrite rule,  it
+should  be  used  on  the  other side because of the special
+augmented list structure of CASE statements.  An example is
+
+RAISE CASE[ID]
+           ["NEW"] => PROCESS(ID);
+           ["OLD"] => STORE(ID) END <->
+                RAISE CASE[ID]
+                 ["UNKNOWN"] => PROCESS(ID);
+                 ["KNOWN"] => STORE(ID) END;
+
+A similar effect can be  obtained  by  the  use  of  the  &?
+operator with the following rewriting rule.
+
+      CASE[ID]
+           &?A;
+           ["NEW"] => PROCESS(ID);
+           ["OLD"] => STORE(ID); &?B END <->
+                CASE[ID]
+                 &?A;
+                 ["UNKNOWN"] => PROCESS(ID);
+                 ["KNOWN"] => STORE(ID); &?B END;
+
+One difference is that the first  rule  effectively  ignores
+the  the  case  variable  header,  e.g.  the [ID], while the
+second rule requires that the case variable  headers  match.
+Thus it can be seen that one effect of the raise operator is
+to provide an unanchored pattern which is moved down a trial
+list  in a matching attempt when used as part of a rewriting
+rule -- without the use of list match variables, and without
+the   necessity   of   specifying  block  headers.   Another
+difference is that the RAISE  BLOCK  ...   END  construction
+matches  some fragment of some block if it matches anything;
+hence only that fragment may be  modified.   The  BEGIN  ...
+??X  ...   END  construction  matches the entire block if it
+matches anything; hence the entire block may be modified (or
+eliminated).
+RERITE USER'S GUIDE                                   Page 8
+
+
+5.  Pattern Matching Facility
+
+     The  pattern  matching  facilities  of  the   rewriting
+program  are  available through the routine MATCHES\PATTERN.
+Its first argument is the trial form and the second argument
+is  the pattern form; it returns true if the pattern matches
+the trial form.  Note that the match is between both  entire
+forms;  the  trial form is not searched for a fragment which
+will match the pattern.  Match variable bindings established
+during  the  pattern  matching  are available through the $$
+operator.  MATCHES\PATTERN uses the form PAIR\LIST  to  hold
+match  variable  bindings  established  during  an attempted
+match.  This form is the one used internally  for  the  same
+purpose.  In most cases, the bindings established during the
+system's use and the user's explicit use of  MATCHES\PATTERN
+are  complementary.   However, if the user desires that such
+bindings not effect the remainder of a matching attempt, his
+program  should be arranged to save and restore PAIR\LIST on
+entry and exit from MATCHES\PATTERN.
+
+     MATCHES\PATTERN takes forms  as  its  arguments,  which
+means  that they are evaluated.  Therefore, the pattern must
+be quoted if it is given explicitly.  The RAISE operator may
+also be used to prepare the pattern form as in the following
+example,
+
+  MATCHES\PATTERN($$X, QUOTE(RAISE [) A+B; C+D; ??Z (]))
+
+which would return true if the match variable, X, were bound
+to  a  fragment  of  a  block like ( (+ A B) (+ C D) ...  ).
+Note that the first argument, $$X, is evaluated so that  the
+trial  form  is the current binding of the match variable X.
+A complete rewriting rule using MATCHES\PATTERN is given  as
+a  further  example.   The  effect  of  this rule is to find
+instances of functional application where  the  function  is
+computed  by  a  block and to evaluate that block and insert
+the result where the block was.
+
+($$MATCHES\PATTERN(X, QUOTE([)??Z(]))) (??Y)
+                        <->
+                (*.MAKEFORM($$X)) (??Y);
+
+Note  that  MATCHES\PATTERN  is  being  used   here   as   a
+conditional  match  function,  and that it is validating the
+fact that the match variable X is bound  an  instance  of  a
+block.   The  *.   operator when found in a replacement form
+causes the match variables in that form to  be  replaced  by
+their  current  bindings,  the form to be evaluated, and the
+result used as part of the replacement.  This operator and a
+similar one, .*, which causes the evaluation to occur first,
+and then the subsitution are discussed in the next section.
+RERITE USER'S GUIDE                                   Page 9
+
+
+6.  Replacements
+
+     Replacement patterns are program  fragments  which  are
+substituted  in  place  of  the  pattern specified in a rule
+whenever  that  pattern  in  found  in  the  program   being
+rewritten.   They  obtain  a  great  deal of flexibility and
+context sensitivity from the process of  macro  substitution
+which is done to them just before they are inserted into the
+program  being  rewritten.   Macro   substitution   is   the
+substitution  of  all  occurences  of match variables in the
+replacement form of a  rule  with  their  current  bindings.
+Thus if the rule
+
+           F($$X, $$Y; ??Z) <-> G(??Z; $$X + $$Y)
+
+were to be applied to the function call
+                      F(A, 4, 5, 6, 7)
+the result would be to replace that form with
+                     G(5, 6, 7, A + 4)
+The replacement form of the rule  is  always  copied  before
+substitution  is  attempted,  and so is not changed as it is
+stored in the rule.
+
+     The replacement part of  a  rewrite  rule  may  contain
+expressions   which   are   to  be  evaluated.   Expressions
+preceeded by *.  are treated in the  following  manner  when
+encountered  as  part  of  a replacement pattern.  First all
+match variables are replaced by their  current  bindings  in
+the  expression.   Then  the expression is evaluated and the
+FORM which must result from that evaluation is taken as that
+part   of   the   replacement  pattern  where  the  original
+expression was  found.   This  substitution  and  evaluation
+takes  place  from  the  innermost  nested  occurence  of *.
+expressions, and occurs during the recursive copy and  match
+variable  substitution  which  is  done  on  all replacement
+forms.  An example is the following  rewrite  which  expands
+simple exponentials.
+
+$$Y ^ $$IS\INT(E) <->
+                 *.   BEGIN
+                        DECL F: FORM BYVAL QUOTE($$Y);
+                        TO $$E - 1
+                          REPEAT
+                          F <- LIST("*", F, QUOTE($$Y));
+                          END;
+                      END;
+
+IS\INT, of course, determines that the match variable, E, is
+an  integer.   If  this  rewriting  rule were applied to the
+program   fragment,    X^10,    the    result    would    be
+X*X*X*X*X*X*X*X*X*X.  The .* operator is similar except that
+the form is evaluated first, and the  result  form  is  then
+substituted for match variables; the substituted result then
+finally being used as part of the replacement.   An  example
+of its use is found in appendix A.
+RERITE USER'S GUIDE                                  Page 10
+
+
+7.  Builtin "Rewrites"
+
+     There are a set of specially defined rewrites  designed
+to  improve program conciseness and clarity.  These rewrites
+consist  of  a  number  of  operators  to  facilitate   mode
+definition  and  object  creation,  and a program to rewrite
+fragments containing these  operators  into  list  structure
+acceptable to the ECL interpreter.  For example,
+
+                      X INITIALLY 100;
+is rewritten to
+                   DECL X: ANY BYVAL 100;
+
+when it is found in the body of  a  routine.   This  special
+rewriting  will  occur  if  the  GENPROG  option is set with
+POKE\RW (see section 8 for POKE\RW and PEEK\RW).
+
+     These operators will also work if presented directly to
+the interpreter provided the rewrite package has been loaded
+prior to their use.  Thus there are two ways in  which  they
+may be used.  If they are inside of programs which are being
+rewritten, they will cause the generation  of  EL1  language
+which  the  interpreter can directly handle.  In their other
+use, they are just operators like + and -, and their  effect
+is  produced  by the execution of the routines bound to them
+when the rewrite package is loaded.   Below  is  a  list  of
+these operators.
+
+INITIALLY
+          Assigns any value to the given name or object;  at
+          top  level  returns  the  value assigned.  (At top
+          level it is  completely  equivalent  to  the  "<-"
+          operator.)
+
+IS\CONSTANT
+          The  idea  behind  this  operator  was  to  create
+          objects which would be scoped as normal variables,
+          but would have the property that the system  would
+          guarantee  their  integrity  for  the  duration of
+          their existance.  The  means  for  enforcing  such
+          constancy  have  not yet been implemented, so this
+          operator is best used  for  program  documentation
+          purposes.
+
+IS\MODE
+          Takes a mode and a  variable  name;  installs  the
+          mode in the environment using the variable name as
+          the tag-name and binds the mode  to  the  variable
+          provided; returns the mode.  This routine, both at
+          top level and inside a  program,  is  supposed  to
+          take care of any forward-referencing necessary, so
+          that the user may say, for example:
+
+              ARC IS\MODE PTR(NODE);
+              NODE IS\MODE STRUCT(VALUE:ANY, SONS:SEQ(ARC));
+RERITE USER'S GUIDE                                  Page 11
+
+
+          and  the  necessary   forward-reference   in   the
+          definition  of  ARC  will  be  done automatically.
+          This feature works at top level and  in  programs,
+          but  because  there are some minor glitches in the
+          checks done when this feature  is  used  inside  a
+          routine, it is safer to do any forward referencing
+          in that case explicitly.
+
+==
+          This operator takes a mode (including size  and/or
+          component    specifications    if   desired)   and
+          constructs an object of that mode, binding  it  to
+          the  variable  provided.   (Eg.  to make a default
+          NODE one could say D == NODE.)
+
+     Due to the special parse properties of system  reserved
+words  such  as  SIZE,  OF, etc, it was necessary to provide
+substitutes for such words.  For BYVAL, LIKE, and SHARED, we
+have  BYVAL\,  LIKE\, and SHARED\.  For OF and SIZE, we have
+OF\ and  SIZE\  with  connectives  for  the  components  and
+dimensions,  respectively,  being  & and CROSS.  The example
+below will illustrate the use of these artifacts.
+
+             BEGIN
+                A IS\CONSTANT 3.14159;
+                B == SEQ(INT) OF\ 1 & 2 & 3;
+                C == SEQ(SEQ(INT)) SIZE\ 10 CROSS 20;
+                D == REAL LIKE\ A + B[2] * C[7,16];
+             END;
+
+If the above example were rewritten with the GENPROG  option
+true, the following would be the result.
+
+             BEGIN
+                DECL A: REAL BYVAL 3.14159;
+                DECL B: SEQ(INT) OF 1, 2, 3;
+                DECL C: SEQ(SEQ(INT)) SIZE 10, 20;
+                DECL D: REAL LIKE A + B[2] * C[7,16];
+             END;
+RERITE USER'S GUIDE                                  Page 12
+
+
+8.  Program Operation
+
+     In order to use the rewriting routines, the  user  must
+load  the  rewriting  package  by  giving  the  ECL command:
+LOADB"RERITE".  This must be done prior to loading any  user
+files  containing  rewrite  definitions  or  programs  to be
+rewritten.  When the  user  is  ready  to  apply  a  set  of
+rewrites  to a procedure, the rewriting programs are invoked
+by calling APPLY\REWRITES with the EXPR to be  processed  as
+the  first  argument.   This routine returns a new EXPR with
+all rewrites applied, and the result must be bound to a  new
+variable if it is to be saved.  Thus the statement
+
+          NEW\FUNCTION <- APPLY\REWRITES(FUNCTION);
+
+will save the rewritten  result  as  a  new  varibale.   The
+statement
+
+          FUNCTION <- APPLY\REWRITES(FUNCTION);
+
+will throw away the old binding for FUNCTION and replace  it
+with  the  rewritten version.  APPLY&rEWRITES takes a second
+argument which is a list of rewriting rules which are to  be
+only  during that call; the rules being excised on exit from
+the call.  The format of the list is QL( A <-> B, C  <->  D,
+...  ).
+
+     APPLY\REWRITES\ONLY   and   GENERATE\PROGRAM\ONLY   are
+functions to be used in the same way APPLY\REWRITES is.  The
+first only applies rewriting rules defined  by  the  <->  or
+<--->  operators, while the second applies the builtin rules
+described in section 7.  Both of these routines  are  called
+internally by APPLY\REWRITES which does both tasks.
+
+     FLUSH\RW is a nofix opertor  which  completely  flushes
+the  rewriting  package  and  clears the PLISTS of rewriting
+rules.  RESTART  is  another  nofix  operator  which  merely
+cleans up the PLISTs and reinitializes the global variables.
+Any time the user is going to reload the file containing his
+rewrite  definitions,  it  is  a  good  idea  to  first type
+RESTART; to clean things up (this includes entering TECO and
+exiting with an EG).
+
+     Defined while APPLY\REWRITES is running,  the  variable
+NEW\FORM  is  always  bound to the most up-to-date status of
+the program being rewritten.  It can be examined  by  typing
+^C  ^C  and  REE,  and  is  sometimes helpful in discovering
+places where the rewriting routines have gone into  a  tight
+loop  due  to  an inadvertently recursive pattern-replacemet
+definition.   (Note:   the  once  only  rewrite   definition
+operator,  <--->, can be used to avoid this problem.  Or the
+rewriting rules may be defined in the body  of  the  routine
+where they will normally be excised after their first use.)
+RERITE USER'S GUIDE                                  Page 13
+
+
+     Control over options in the rewrite package is obtained
+by  use of the routines, PEEK\RW and POKE\RW.  Both routines
+take a SYMBOL UNEVAL as their first argument and return  the
+value  associated  with  the  identifying  symbol.   POKE\RW
+additionally takes an ANY as a second argument, and sets the
+parameter  associated  with  the keyword to the value of the
+second argument.  Below are given the keywords, the modes of
+their   associated   variables,  and  the  purpose  of  each
+associated variable.
+
+GENPROG         BOOL    Do generate program pass as part
+                        of APPLY\REWRITES. Initially FALSE.
+KEEPRW          BOOL    Keep embedded rewrites found in
+                        the body of routines being
+                        rewritten. Initially FALSE.
+FILTERIN        PROC(FORM;FORM) Input and output filter
+FILTEROUT                 functions for the APPLY\REWRITES
+                          tree walk. The result form is the
+                          one walked or returned as re-
+                          written respectively. Initially
+                          NIL and not applied.
+MAXPASSES       INT     Maximum number of times APPLY\
+                        REWRITES is iterated over a form.
+                        Initially 1000000. Normally 2 or 3
+                        passes are sufficient. Iteration
+                        automatically stops when no further
+                        changes are reported after a pass.
+SHOWPASSES      BOOL    Show the time of each pass.
+                        Initially TRUE. Time is in
+                        seconds.
+HELP            STRING  Returns this list of keywords.
+RERITE USER'S GUIDE                                  Page 14
+
+
+Appendix A:  Illustrative Example
+
+     Statements beginning with "..." are comments  and  were
+not actually typed during the sample run given below.
+
+.TYPE RWTEST.ECL  ...DISPLAY THE FILE CONTAINING THE
+                REWRITE RULE AND A PROGRAM TO BE REWRITTEN.
+                STATEMENTS OF THE FORM P>->F ARE EXCISED
+                IF P IS NOT TRUE; IF P IS TRUE AND F IS
+                A BLOCK, ITS BODY IS SUBSTITUTED,
+                OTHERWISE F.
+INFIX(">->", 3);  ...SET THE PARSING PROPERTIES OF THE
+                  CONDITIONAL INCLUSION OPERATOR.
+[) ?? H; $$ P >-> $$ F; ?? T (] ...THIS PATTERN MATCHES ANY BLOCK WITH
+                                STATEMENTS LIKE ? >-> ?, AND HOLDS ONTO
+                                THE STATEMENTS IN FRONT AND BACK.
+         <->    ...THIS INFIX OPERATOR DEFINES THE REWRITE.
+  .*    ...THIS OPERATOR SAYS THAT THE REPLACEMENT FOR THE
+        BLOCK WHICH WAS MATCHED IS TO BE OBTAINED BY EXECUTING
+        THE CODE BELOW, AND THEN SUBSTITUTING INTO THE RESULT THE
+        VALUES OF THE VARIOUS MATCH VARIABLES (H, Z, T).
+     BEGIN
+       NOT EVAL($$ P) => QUOTE([) ?? H; ?? T (]);
+                ...ABOVE GETS VALUE OF THE PREDICATE.
+                IF FALSE, DROP THE >-> STATEMENT.
+       MATCHES\PATTERN($$ F, QUOTE([) ?? Z (])) =>
+         QUOTE([) ?? H; ?? Z; ?? T (]);
+                ...ABOVE SEES IF F IS A BLOCK.
+                IF SO, ENTER ITS BODY, Z.
+       QUOTE([) ?? H; $$ F; ?? T (]);
+                ...ABOVE SIMPLY DROPS THE PREDICATE AND
+                INCLUDES F.
+     END;
+ 
+SQRT <-         ...THIS ROUTINE TO BE REWRITTEN HAS TWO BODIES,
+                ONE USING THE LOG FUNCTION, AND THE OTHER NEWTON'S
+                METHOD FOR FINDING SQUARE ROOTS.  WHICH BODY TO BE
+                RETAINED IS DETERMINED BY THE VALUE OF HAVE\LOG.
+  EXPR(N:ARITH; REAL)
+    BEGIN
+      HAVE\LOG >-> EXP(LOG(N) / 2.0);
+      NOT HAVE\LOG >->
+        BEGIN
+          DECL X, X1:REAL BYVAL N / 2;
+          REPEAT
+            X1 <- (X + N / X) / 2.0;
+            ABS(X1 - X) LT 5.0E-7 => X1;
+            X <- X1;
+          END;
+        END;
+    END;
+RERITE USER'S GUIDE                                  Page 15
+
+
+ .ECL
+ECL(8-10-76) LOAD"SYS:NEWS"
+
+->LOADB"RW14"; ...LOAD THE REWRITING PACKAGE.
+
+->LOAD"RWTEST"; ...LOAD THE REWRITING RULE AND TEST CASE.
+
+->REWRITE\LIST$ ...OUT OF CURIOSITY, SEE WHAT REWRITING
+                RULES ARE AROUND.
+((BEGIN . FORMLIKE))
+
+->"BEGIN".SBLK.PLIST$ ...LOOK AT THE PROPERTY LIST FOR "BEGIN"
+                        TO SEE THE INTERNAL REPRESENTATION.
+                        THE FORMAT IS (KEY (PATTERN SEMANTICS
+                        . REPLACEMENT) ...) WHERE ALL OF THE
+                        PARTS ARE FORMS.
+(FORMLIKE ((BEGIN ?? H (>-> ($$ P) ($$ F)) ?? T) NIL
+ .* (BEGIN (=> (NOT (EVAL ($$ P))) (QUOTE (BEGIN ?? H ?? T)))
+(=> (MATCHES\PATTERN ($$ F) (QUOTE (BEGIN ?? Z)))
+(QUOTE (BEGIN ?? H ?? Z ?? T))) (QUOTE (BEGIN ?? H ($$ F) ?? T)))))
+
+->LOADB"SYS:UP"; ...LOAD THE PRETTY PRINTER FOR LATER USE.
+
+
+-> HAVE\LOG <- FALSE; ...SAY THAT THERE IS NOT LOG FUNCTION.
+
+->NEW\SQRT <- APPLY\REWRITES(SQRT); ...GENERATE A SQRT UNDER
+                                         THIS ASSUMPTION.
+7.267  7.416  5.266     ...TIMES IN SECONDS FOR EACH PASS.  
+->UNPARSE(NEW\SQRT); ...SHOW WHAT WAS OBTAINED.
+
+EXPR(N:ARITH; REAL)
+  BEGIN
+    DECL X, X1:REAL BYVAL N / 2;
+    REPEAT
+      X1 <- (X + N / X) / 2.0;
+      ABS(X1 - X) LT 5.0E-7 => X1;
+      X <- X1;
+    END;
+  END;
+
+->HAVE\LOG <- TRUE;  ...NOW LOG IS AVAIABLE.
+
+->NEW\SQRT <- APPLY\REWRITES(SQRT); ...GENERATE A SQRT UNDER
+                                         THE NEW ASSUMPTION.
+7.667  8.700  1.750     ...TIMES AGAIN.  
+->UNPARSE(NEW\SQRT); ...SHOW RESULT OF REWRITING.
+
+EXPR(N:ARITH; REAL) [) EXP(LOG(N) / 2.0) (];
+
+->^C^C
+RERITE USER'S GUIDE                                  Page 16
+
+
+Appendix B:  Summary of Operators
+
+
+     Below are given the operators defined by the  rewriting
+package.    For   each   operator   is   given   its   type,
+fixity(including priority), and use.  Type REAL implies that
+the  operator  can  actually  be  evaled, i.  e.  that it is
+actually bound to a procedure.  Type PSEUDO implies that the
+operator  is  specially  evaluated  by the rewriting package
+when applying a rewriting rule.  Some operators such  as  $$
+are both REAL and PSEUDO.  $$ when found in a pattern serves
+as a match variable indicator, in a replacement pattern as a
+request  that  the  current  binding  be  inserted  into the
+pattern, and when actually evaluated, it takes a symbol  and
+returns its current binding as a match variable.
+General Rewrite Format:
+
+  <syntactic pattern>  WHERE
+        <semantic predicate> <-> <replacement>
+
+OPERATOR        TYPE    FIXITY          USE
+<->             REAL    INFIX 3         DEFINES REWRITES.
+<--->           REAL    INFIX 3         DEFINES REWRITES.
+WHERE           PSEUDO  INFIX 5         SEMANTIC PREDICATE.
+$$              BOTH    PREFIX          STATEMENT WILDCARD.
+??              PSEUDO  PREFIX          LIST WILDCARD.
+&$              PSEUDO  SYNFIX =>       $$ FOR USE IN CASE.
+&?              PSEUDO  SYNFIX =>       ?? FOR USE IN CASE.
+.*              PSEUDO  PREFIX          EVAL REPLACEMENT.
+*.              PSEUDO  PREFIX          EVAL REPLACEMENT.
+RAISE           BOTH    PREFIX          REMOVE BLOCK HEADER.
+MATCHES\PATTERN REAL    NONE            PATTERN MATCHER.
+
+
+     The use of the operators below is given in  section  7.
+They  are  all  REAL  operators when evaluated at top level;
+when found in programs,  they  are  pseudo  operators  which
+direct  the  rewriting  of the expressions in which they are
+found.
+
+==              INFIX           40
+IS\CONSTANT     INFIX           55
+IS\MODE         INFIX           55
+INITIALLY       INFIX           55
+LIKE\           INFIX           45
+SHARED\         INFIX           45
+BYVAL\          INFIX           45
+OF\             INFIX           130
+CROSS           INFIX           150(RIGHT ASSOCIATIVE)
+&               INFIX           170(RIGHT ASSOCIATIVE)
+RERITE USER'S GUIDE                                  Page 17
+
+
+Appendix C:  Algorithms and Data Format
+
+     Rewrite patterns and replacements  are  stored  on  the
+PLISTs  of  atoms  in  the  current  implementation  of  the
+package.  The  format  used  is  standard  LISP-style,  i.e.
+(KEYWORD  PROPERTY ...).  This should not interfere with any
+user uses of the PLIST if he follows this format,  nor  will
+his  uses  interfere with the rewriter.  If any other format
+is used, care must be exercised  not  to  invalidate  PLISTs
+before applying the rewrites to the desired routines.  There
+is a global variable, REWRITE\LIST, which is bound to a list
+of  DTPRs  whose  CAR  is  the  atom whose PLIST has on it a
+rewrite identified by the keyword which is the  CDR  of  the
+DTPR.   This list is used by the routines which clean up the
+environment and should not be modified by the user.
+
+     The  keywords  used  by   the   rewrite   package   are
+"STATEMENT"  which  is  applied  to rewrites whose syntactic
+patterns are prefixed by RAISE,  "FORMLIKE"  for  all  other
+syntactic  patterns,  and as a special case, "ONCE\ONLY" for
+syntactic patterns in rules defined by the  <--->  operator.
+"FORLIKE"  and  "ONCE\ONLY"  rules are applied to all forms.
+"STATEMENT" rules are applied only to statements  in  BEGIN,
+CASE,  and REPEAT blocks.  The property part of the plist is
+itself a list of the form (pattern semantics .  replacement)
+where  each  of  the elements is a form.  It should be noted
+that  the  pattern  and  replacment  forms   are   specially
+processed   looking  for  instances  of  the  RAISE  and  ??
+operators.  [) ??X (] would normally  parse  as  (BEGIN  (??
+X))  but  after the processing, it would appear as (BEGIN ??
+X).  Similarly for the &?  operator.  Additinally &?  and &$
+are   changed  to  ??   and  $$  respectively  for  internal
+purposes.  Patterns which the user specifically provides  to
+the  MATCHES\PATTERN  routine  are  automatically given this
+special processing.
+
+     The algorithm used by APPLY\REWRITES  is  to  walk  the
+given  program's  list structure trying each component form.
+Each form is searched for the  first  symbol  which  can  be
+found, and all the rewrites on that symbol's PLIST are tried
+using an internal version of MATCHES\PATTERN.   If  none  of
+the  rewrite's  patterns  matches the given trial form, then
+the rewrite's on "$$"'s PLIST are checked  (such  a  pattern
+might  be  ($$x)(??z)  which would be changed into (($$x) ??
+z) and match any function call or block).  This use  of  the
+first  symbol  in  the  trial form to pick a possible set of
+rewrite rules is based on the fact that  the  rewrite  rules
+themselves  are  stored on the PLIST of the first atom found
+in their syntactic pattern.  It should be  stated  that  all
+matching  and  replacements are done from the inside out, i.
+e.  the trial form is walked  to  a  terminal  node  and  an
+attempt is made to replace that node by some rewriting rule.
+The result is passed up one level, and an attempt is made to
+rewrite the list whose terminals have just been processed --
+and so forth.
+

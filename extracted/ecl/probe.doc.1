@@ -1,0 +1,1008 @@
+
+
+
+ 
+
+
+
+
+
+                     PROBE USER'S GUIDE
+
+
+
+
+
+                     William R. Conrad
+
+
+
+
+
+                        June 1, 1976
+
+
+
+
+
+                     Harvard University
+
+        Center for Research in Computing Technology
+
+                  Cambridge, Massachusetts
+
+
+
+
+
+This work was supported in part  by  the  Advanced  Research
+
+Projects Agency under contract N00039-76-C-0168 and Rome Air
+
+Developement Center under contract F-30602-74-C-0032.
+
+PROBE USER'S GUIDE                                    Page 2
+
+
+        Introduction
+
+        1.      Capabilities and Options
+
+                1.0     Command Format
+                1.1     Frequency and Timing Options
+                1.2     Statement Counting
+                1.3     Tracing and Break Options
+                1.4     Listing Options
+                1.5     Probing Compiled Routines
+                1.6     Other Features
+
+
+        2.      Data Structures and Algorithms
+
+                2.0     Overview and Orientation
+                2.1     The PROBE Control stack
+                2.2     The PENTRY
+                2.3     The IENTRY
+                2.4     Probe Insertion
+                2.5     Notes on Timing
+
+
+Appendix A:     Command Summary
+Appendix B:     Annotated Example
+Appendix C:     Compiling and Calibrating PROBE
+PROBE USER'S GUIDE                                    Page 3
+
+
+ 
+
+
+
+
+
+                         ADDITIONS
+
+
+
+     The timing option now includes the calculation  of  the
+variance of the local times of a routine.  If the routine is
+recursive, it is the recursive frequency count which is used
+to  compute  the  variance.   The  variance  is displayed in
+parentheses  after  the  routine  name,   frequency   count,
+recursive  frequency  count,  and maximum recursive depth in
+the display of results which  the  "LIST"  option  produces.
+Additinally,  the  field  "DLT""  has been added to the mode
+PENTRY.  This field is used to produce  the  message  "local
+time  =  ..."  which  is now printed when exiting a routine.
+This field is available to user  PROBE\OBREAK\FORM  code  by
+refering  to  PROBE\PENTRY.DLT and represents the local time
+of the routine just being exited.
+
+     In   addition   to   PROBE\PENTRY,   PROBE\INDEX,   and
+PROBE\RESULT,  PROBE\CSI  and  PROBE\CSTACK are available to
+users at procedure and statement breaks.
+
+     The COUNTS options has a new suboption to  specify  the
+counting  of all statements, not just logical branch points.
+By use of this new suboption and the SBREAK  option,  it  is
+possible   to  break  at  practically  every  statement  for
+debugging  purposes.   the  new  suboption  is  invoked   as
+follows:
+                       COUNTS(DENSE)
+This new suboption need be used only once since its  purpose
+is  to  cause the longest possible list of sites at which to
+insert statement counts to be prepared.  Once  it  has  been
+invoked  and  the  list  prepared,  the  COUNT(N1,  N2 ...),
+UNCOUNT(N1, N2, ...), and SBREAK(N1, N2, ...)  options  will
+operate on the long list.
+PROBE USER'S GUIDE                                    Page 4
+
+
+ 
+
+
+
+
+                        Introduction
+
+     PROBE is a program  designed  to  insert  metering  and
+debugging  probes  into  both  uncompiled  (interpreted) and
+compiled ECL programs.  Its features are made  available  by
+loading  the  file  "PROBE.BIN"  and then giving one or more
+commands by calling the routine PROBE.  The routine PROBE is
+the  primary  user  interface with the probing package.  The
+arguments to the PROBE routine serve three functions.  First
+to  specify  the  desired options.  Second to give a name to
+the group of user routines to be probed.  And third to  list
+the  routines  to  be  included in the group.  The specified
+options will be  enabled  for  each  routine  in  the  group
+(hereafter  refered  to  as  a  probing module or module for
+short), and when one of these  user  routines  is  executed,
+certain   actions   will  be  peformed.   Depending  on  the
+particular options enabled, the action may be the  recording
+of  the  caller  of  the  routine, the recording of the time
+spent in the routine, or the display  of  its  arguments  or
+result.   No  matter  what  other  options may be enabled, a
+frequency or  use  count  is  always  maintained  for  every
+routine in a probing module.
+
+     There is a greater amount of flexibility  and  ease  in
+the  use of the routine PROBE than the above paragraph might
+indicate.  While a complete  specification  of  options  and
+routines  to which they are to be applied must be given when
+a probing module is created, the module name and the routine
+names need not be mentioned again until one wishes to switch
+to another module or add or delete one or more routines from
+an  existing module.  Additionally, options are enabled on a
+per routine basis.  The implication in the  first  paragraph
+that the specified options are enabled for all routines in a
+module is true only if a specific subset of the  module  has
+not  been  given.  Once a module has been created, an option
+may be applied to any group  of  routines  by  giving  their
+names as an argument to PROBE.
+
+     Since this is a user's guide designed  to  help  people
+actually  use  the PROBE package, this introduction will end
+with an annotated example.   Because  it  is  several  pages
+long,  it  has  been placed in Appendix B at the end of this
+guide.  But it really should be  examined  as  part  of  the
+introduction  to  put  some flesh on the abstractions of the
+first two paragraphs.  After looking  at  the  example,  the
+remainder  of  the guide should make considerably more sense
+than it would otherwise.
+PROBE USER'S GUIDE                                    Page 5
+
+
+1.  Capabilities and Options
+
+  1.0  Command Format
+
+     The primary user interface is the routine "PROBE".   It
+takes  three  arguments.   The first is a single option or a
+list of options.  A single options is specified as a symbol,
+an  identifier  surrounded  by  double  quotes.   A  list of
+options is specified by enclosing  them  in  matching  angle
+brackets.   The  options need not be quoted if they are part
+of an angle bracket list.  The second argument is  the  name
+(as  a quoted symbol) of the probing module which is to hold
+the information about the routines to be probed.  The  third
+argument  is  a  single name (as a quoted symbol) or list of
+names of the routines to be modified by the  given  options.
+The  top  level bindings of the names are used to obtain the
+routines to be included in the specified probing  module  if
+the  routine  is not already there.  Once a routine has been
+entered into a probing module, its name need not necessarily
+have  any  value  at a later time.  If the third argument is
+missing, then all the routines in the current probing module
+are  considered  as being specified.  Also, the last non-nil
+first and second arguments are remebered in  the  top  level
+bindings of
+
+                PROBE\CURRENT\OPTIONS
+and
+                PROBE\CURRENT\MODULE
+
+Due  to  this  argument  retention,  a  certain  economy  of
+expression  can  be  obtained.   Only  those  options and\or
+routines which are to be changed need be explicitly given.
+
+  1.1  Frequency and Timing Options
+
+        TIMES   CALLS   INIT    UNTIME  UNCALL
+
+     Frequency counts are always recorded for every  routine     _________ ______ ___ ______ ________ ___ _____  _______
+mentioned  to the PROBE program.  The TIMES option specifies_________  __ ___ _____ _______
+that in addition to frequency counts, the total time and the
+local  time  spent  in each routine be computed.  Because of
+the coarse resolution of  the  hardware  clock  being  used,
+timing  results  should  be  examined with great care before
+accepting  their  validity  (see  2.5).   The  CALLS  option
+specifies  that  a  list  of  callers and callees of a given
+routine be maintained.  If both the TIMES and CALLS  options
+are  active,  the  following  is done.  For each caller, the
+number of times it was called by the caller and the time  it
+spent are recorded.  For each callee, the number of times it
+was called by the given routine  and  the  time  the  callee
+spent in these calls are recorded.
+
+PROBE USER'S GUIDE                                    Page 6
+
+
+INIT sets all frequency and timing information to zero,  and
+also  removes  any  record  of  callers and callees.  UNTIME
+turns off the timing option, and UNCALL the  callers-callees
+option,   without   removing   any   previously  accumulated
+information.
+
+  1.2  Statement Counting
+
+        COUNTS(n1, n2, ... n3)
+        UNCOUNT(n1, n2, ... n3)
+
+     This option applies only to uncompiled  or  interpreted
+routines  and  specifies  that  counters be inserted at each
+statement which is a branch point in  the  logical  flow  of
+each  specified  routine.   The  optional  argument  list of
+statement numbers is not normally given the first time  this
+option  is  specified.   Rather,  the  option  COUNTS  which
+specifies all statements is given and then the option UP  is
+used  to  pretty print the routine with the location of each
+counted statement shown.  Once the location of each  counter
+is  known,  the UNCOUNT option can be used to turn off those
+of no interest.  Often the procedure used will  be  to  turn
+off  all counters, and then to use the COUNTS option with an
+argument list to turn back on those desired.
+
+  1.3  Tracing and Break Options
+
+        ITRACE ARGS OTRACE RESULT
+        IBREAK OBREAK SBREAK(n1, n2, ... n3)
+        UNBREAK(n1, n2, ... n3)
+
+     ITRACE specifies that an announcement be made on  going
+into  a  procedure.   ARGS  specifies  that the arguments be
+displayed also.  OTRACE specifies that  an  announcement  be
+made  on  coming  out  of  a  procedure, and RESULT that the
+result of the procedure be displayed also.  This information
+will be output to the port
+                     PROBE\TRACE\PORT
+so that very large amounts of  tracing  information  may  be
+routed   to   a   disk   file  for  later  examination.   If
+PROBE\TRACE\PORT is nil, the information is  output  to  the
+teletype.
+
+     IBREAK and OBREAK specify that a break is to  occur  on
+procedure  entry  and  exit  respectively.   SBREAK  with no
+argument list will cause all statements which are counted to
+be  broken  just  before execution.  The argument list would
+selectively  enable  breaks  for   just   those   statements
+specified.
+
+     UNBREAK with no argument list  turns  off  all  breaks,
+both  for  statements  and  procedure entry and exit.  If an
+arugment list is given, then the break option is turned  off
+for  the statements whose numbers are given.  If n1 is zero,
+procedure entry and exit  breaks  are  turned  off.   (Note:
+PROBE USER'S GUIDE                                    Page 7
+
+
+there  is no statement zero so it is used in this context to
+imply the whole procedure).
+
+  1.4  Listing Options
+
+        LIST(T,C,S,O)   UP
+
+     The LIST option prints  the  following  information  as
+specified  by its argument list, metering (M), intermetering
+(I), counts (C), and current options (O)  in  the  following
+format:
+        *NAME   FC      RFC     MRD
+                <enabled options if requested>
+        TT      LT      ATT     ALT     RALT
+        (CALLERS)
+        NAME1   FC      RFC     
+        TT      LT      ATT     ALT
+        . . .
+        . . .
+        (CALLEES)
+        NAME2   FC      RFC
+        TT      LT      ATT     ALT
+        . . .
+        . . .
+        (STATEMENT COUNTS)
+        . . .
+        . . .
+
+Where NAME is the name of routine being  listed,  FC  stands
+for  frequency  count, RFC for recursive frequency count, TT
+for total time, LT for local time,  ATT  for  average  total
+time,  ALT  for  average  local time, and RALT for recursive
+average local  time.   Times  are  given  in  seconds.   The
+frequency count is the number of times a routine was entered
+non-recursively.  The recursive frequency count is the total
+number  of  times a routine was entered, whether recursively
+or not.
+
+     CALLERS and  CALLEES  frequency  counts  refer  to  the
+number  of  times a particular caller-callee combination has
+been seen, either non-recursively  or  recursively.   Timing
+entries under the "(CALLERS)" category refer to the behavior
+of the primary routine (*NAME) when  called  by  the  listed
+routines  (NAME1 in the above schema).  Timing entries under
+the "(CALLEES)" category refer to the behavior of the listed
+routines  (NAME2  in  the  above  schema) when called by the
+primary routine (*NAME).
+
+     If no argument list is given to the list command,  then
+all  of  the  above  information  except  for the options is
+printed.  Output is directed to the port
+                     PROBE\LIST\PORT
+which if nil will result in output to the teletype.
+PROBE USER'S GUIDE                                    Page 8
+
+
+     The  UP  command  will  unparse  (pretty  print)   each
+uncompiled  routine  with  statement  counters  displayed as
+comments.  For example, if statement counter number 25  with
+a  count  of  153 is associated with the statement "A <- B +
+C", it would unparse as
+
+        '(.25. 153)' */ A <- B + C;
+
+Output is directed to the port
+                    PROBE\UNPARSE\PORT
+which defaults to the user's teletype if nil.
+
+  1.5  Probing Compiled Routines
+
+     Compiled routines (CEXPRs) which are bound  to  a  name
+may  be  probed  as  any  other  routine.   However, in most
+compiled packages the names of all but a  few  routines  are
+suppressed  in  the BIN file.  Because of this, a routine is
+provided in the PROBE package to produce  special  lists  of
+routine  names and values in the environment of the BIG file
+just after compilation.  This routine  is  PROBE\MAKE\MODULE
+and  it takes two arguments.  The first is a list of routine
+names and the second is a symbol which is to be  the  module
+name.   In the BIG or compilation environment, ROUTINE\NAMES
+is a list of all routines just compiled, so if it is desired
+to  probe an entire compiled package, ROUTINE\NAMES would be
+given as the first argument.  The complete procedure  is  as
+follows.
+
+        1)LOADB"FOO.BIG";
+        2)LOADB"SYS:DRIVER";
+        3)LOADB"SYS:PROBE";
+        4)PROBE\MAKE\MODULE(ROUTINE\NAMES, "FOO");
+        5)DUMP\PACKAGE();
+        6)R ECL  ...  at some later time
+        7)LOADB"FOO";
+        8)PROBE(<options>, "FOO");
+PROBE USER'S GUIDE                                    Page 9
+
+
+  1.6  Other Features
+
+     To completely unprobe one or more routines of  a  given
+probing  module, and to remove their entries in that module,
+the PROBE option FLUSH should be used.
+
+     To completely remove the probe package and  to  unprobe
+all  routines  in all modules, the routine FLUSH\PROBE which
+takes no arguments should be used.
+
+     To obtain a PENTRY (see 2.2) for a  given  routine  the
+probe   routine,  PROBE\FIND  should  be  used.   Its  first
+argument is the symbol for  the  desired  routine,  and  its
+second  argument  is  the name of the module to be searched.
+If no module  is  specified,  then  PROBE\CURRENT\MODULE  is
+used.
+
+     Procedure entry, procedure exit, and  statement  breaks
+may be intercepted by setting one of the following variables
+to a form.  This form will EVALed  instead  of  BREAK  being
+called.   PROBE\PENTRY  (and  PROBE\INDEX  and  PROBE\RESULT
+where appropriate) will be setup for use by the user form.
+
+                PROBE\IBREAK\FORM
+
+                PROBE\OBREAK\FORM
+
+                PROBE\SBREAK\FORM
+PROBE USER'S GUIDE                                   Page 10
+
+
+2.  Data Structures and Algorithms
+
+  2.0  Overview and Orientation
+
+     The purpose of this section of the user's guide  is  to
+provide a general understanding of how probing is done and a
+specific knowledge  of  the  contents  of  a  PENTRY.   This
+knowledge, coupled with the PROBE\FIND routine which returns
+the PENTRY associated with a given name, should  allow  user
+extensions  with  regard  to  the  listing  and  analysis of
+accumulated metering information.  Additionally,  it  should
+provide user's with a souund basis for suggestions regarding
+future additons to the probe package.
+
+     Every routine which is mentioned to the  PROBE  program
+has  created  for  itself  a  PENTRY.   The  PENTRY  is  the
+repository of all  the  accumulated  information  about  the
+routine  including its currently enabled options.  A probing
+module is a virtual entity consisting of a number of PENTRYs
+chained  together  via  a  pointer field in each entry.  The
+value of the module name is a pointer to the first PENTRY in
+the  chain.   Into  each routine's top level binding cell is
+put a pointer to a probing routine whose purpose is exercise
+the  various  options  specified  by  the  routine's PENTRY,
+execute the body of  the  original  routine,  and  to  store
+metering results in the PENTRY.
+
+     While the PENTRY is a more or less static  entity,  the
+PROBE control stack serves as a convenient data structure to
+hold dynamic partial information during the actual execution
+of  probed  routines.  Probing routines (e.  g.  those which
+replace PROBEd routines) put a record on the  PROBE  control
+stack  on  their  entry and remove the record on exit.  This
+behavior models or simulates  the  behavior  of  the  actual
+control  stack  in  the  ECL  runtime system.  The important
+difference is  in  the  accessibility  and  content  of  the
+records on the simulated stack.  The PROBE control stack and
+the PENTRY will  be  discussed  in  greater  detail  in  the
+following sections.
+
+  2.1  The PROBE Control Stack
+
+     The PROBE package maintains a simulated  control  stack
+which  is  a  sequence  of  pointers  to PROBE control stack
+entries.  When a probed routine is entered,  a  record  with
+the following information is created:
+
+        PENTRY for the routine
+        Real control stack value at entry
+        Initial time
+        Intermetering entry
+
+By refering to the top of the stack,  probing  routines  can
+obtain  via  the PENTRY most of the information they need to
+perform their functions.  By  refering  to  the  entry  just
+PROBE USER'S GUIDE                                   Page 11
+
+
+before  the top, they can determine who their caller is.  On
+exit, the initial time in conjunction with the current  time
+allows  timing  to  be  done,  while the intermetering entry
+allows recording information of callers and callees.
+
+     The  real  control  stack   value   (obtained   via   a
+PEEK(CSUSED))  is  used  to  handle non-local returns in the
+following manner.  A RETURN trap is  enabled  by  the  PROBE
+package  which traps to a probing routine with the new value
+of the real or system  control  stack  when  the  return  is
+actually  done.   The  probing routine in charge of handling
+returns then proceeds to pop PROBE control stack records and
+do  exit  calculations until a record is reached with a real
+control stack value which is less than or equal to  the  new
+control stack value.
+
+  2.2  The PENTRY
+
+     Below is the ECL definition of a PENTRY.  Internally it
+has  the  name P\\PENTRY.  After its definition, the purpose
+of each of its fields will be given.
+
+        P\\PENTRY <-
+          P\\PENTRY ::
+            STRUCT(ID:SYMBOL,
+                   BIG:REF,
+                   SKL:REF,
+                   NXT:PTR("P\\PENTRY"),
+                   BODY:REF,
+                   CALLS:BOOL,
+                   TIMES:BOOL,
+                   ITRC:BOOL,
+                   OTRC:BOOL,
+                   ARGS:BOOL,
+                   RES:BOOL,
+                   IBRK:BOOL,
+                   OBRK:BOOL,
+                   SBRK:PTR(SEQ(BOOL)),
+                   SCNT:PTR(SEQ(INT)),
+                   CHD:PTR(SEQ(FORM)),
+                   OHD:PTR(SEQ(FORM)),
+                   CD:PTR("P\\ILINK"),
+                   CS:PTR("P\\ILINK"),
+                   FC:INT,
+                   RFC:INT,
+                   MXD:INT,
+                   D:INT,
+                   TT:P\\TIME,
+                   NT:P\\TIME);
+PROBE USER'S GUIDE                                   Page 12
+
+
+     The purposes of the various fields of a PENTRY  are  as
+follows:
+ID      The name by which a user identifies the routine.
+BIG     Pointer to a copy of the original proc mode
+        cell of the routine being probed.
+SKL     Pointer to the original proc mode cell which will
+        be smashed to point to the probing routine built
+        to replace the user's original routine.
+NXT     Points to next pentry in this module..
+BODY    Points to either the body of EXPRS or to
+        the original unmodified CEXPR.
+CALLS   If true, record caller and callee statistics.
+TIMES   If true, compute times for routines.
+ITRC    If true, print notice of procedure entry.
+OTRC    If true, print notice of procedure exit.
+ARGS    If true, print args on procedure entry.
+RES     If true, print result on procedure exit.
+IBRK    If true, do procedure  entry break.
+OBRK    If true, do procedure exit break.
+SBRK    SEQ(BOOL) to control statement breaks.
+        SBRK[N] if true causes the Nth statement to
+        break just before execution.
+SCNT    SEQ(INT), each a counter of statement executions.
+        SCNT[N] records the number of times the
+        Nth statement is executed.
+CHD     SEQ(FORM) of sites for statements to be counted.
+        The CAR of CHD[N] is replaced with a CEXPR
+        which will count the statement and then EVAL
+        the form which was the original Nth statement.
+OHD     SEQ(FORM) of the original statements.
+CD      Intermetering calledby chain.
+CS      Intermetering calls chain.
+FC      Non-recursive frequency count.
+RFC     Recursive frequency count. FC + RFC = total entries.
+MXD     Maximum recursive depth.
+D       Recursive depth temporary.
+TT      Total time(recursively corrected).
+NT      Non-local time(recursively corrected).
+        Local time = TT - NT.
+
+     The time fields (TT and NT) which are kept as  integers
+in  this  implementation  are conceptually composed of three
+components.  The first component is runtime as  obtained  by
+PEEK(RUNTIME).   The  second  component  is  the  value of a
+pseudo-clock, P\\CLOCK, at the  time  the  first  and  third
+components  are  read.  Each probing routine increments this
+integer with an appropriate constant to represent the amount
+of time it has spent in probing the user's original routine.
+The third  component  is  the  garbage  collection  time  as
+obtained  by  PEEK(GCTIME).   If two of these extended times
+are subtracted component by component, then  each  component
+of  the  result represents respectively, the total time, the
+probing overhead time, and the garbage collection time.   If
+the  second  and  third  intervals  are  subtracted from the
+first, the result is the time which  can  be  attributed  to
+PROBE USER'S GUIDE                                   Page 13
+
+
+computation.   In the current implementation, the second and
+third components are subtracted from the first immediately.
+
+  2.3  The IENTRY
+
+     Below is the ECL definition of an intermetering  entry.
+After  the  definition  will  be given an explanation of how
+IENTRYs are used.
+
+        P\\IENTRY <-
+          P\\IENTRY ::
+            STRUCT(CALLER:SYMBOL,
+                   CALLEE:SYMBOL,
+                   FC:INT,
+                   RFC:INT,
+                   TT:P\\TIME,
+                   NT:P\\TIME,
+                   D:INT,
+                   ONT:P\\TIME);
+
+     The purposes of the fields are as follows:
+CALLER  The ID of the routine calling this
+        routine.
+CALLEE  The ID of the routine being called by
+        the caller.  The remainder of the fields refer to
+        behavior of the callee when called by the caller.
+FC      Number of times this caller-callee combination
+        has occurred counting only the first or
+        non-recursive instances.
+RFC     Number of times this caller-callee combination has
+        occurred recursively.
+TT      Total time spent in the callee when called by the
+        caller.
+NT      Non-local time part of TT.
+D       recursive depth temporary.
+ONT     Old non-local time temporary.
+
+     IENTRYs are chained together via ILINKs, which  have  a
+pointer  field to an IENTRY and a pointer field to an ILINK.
+It is a chain of ILINKs which the  CD  (called  by)  and  CS
+(calls)  fields  of  a PENTRY point to.  The reason for this
+extra level of pointers is that there  is  only  one  shared
+IENTRY  for  each  caller-callee  combination.   This shared
+IENTRY is pointed to from the caller's CS chain and from the
+callee's  CD  chain.  On entry into a probed routine, its CD
+field is searched via the ILINKs for an IENTRY with a caller
+field  equal  to  the  actual caller's ID field.  If none is
+found, then one is created.  On exit from  the  callee,  the
+IENTRY  is  updated in much the same way as the PENTRY.  The
+difference is that the  IENTRY  time  and  frequency  fields
+reflect  the  behavior  of  the  callee  when  called  by  a
+particular caller.
+PROBE USER'S GUIDE                                   Page 14
+
+
+  2.4  Probe Insertion
+
+     The way in which routines and statements  are  modified
+so  that  they peform probing functions is described in this
+section.  The basic method is to prepare an enveloping shell
+or  box  which  contains  the original routine or statement.
+For uncompiled routines this shell is an EXPR with the  same
+formals and result type but with a body which is a call to a
+CEXPR which sets the global variable, PROBE\PENTRY, and then
+calls  a  probing routine.  PROBE\PENTRY which points to the
+PENTRY for the routine being  entered  is  pushed  onto  the
+probe control stack as part of the control stack entry.  The
+original body of the routine (obtained from the  BODY  field
+of  the  PENTRY)  is  then  EVALed.   The  global temporary,
+PROBE\PENTRY, and the  PROBE  control  stack  are  used  for
+argument  passing  and  retention to avoid making name stack
+entries for arguments and local variables.  Since  ECL  uses
+deep  binding  which involves a name stack search, a probing
+package cannot make the name stack any longer than it  would
+be normally without totally invalidating timing results.
+
+     For compiled routines the shell is a small or  skeleton
+version  of the routine to be probed.  This skeleton has the
+same formals and result type as the original routine but its
+body  sets  PROBE\PENTRY  and  then  jumps  directly  into a
+probing routine which applies the desired options and  calls
+the original routine.  There appears here another reason why
+local variables and parameters cannot  be  used  aside  from
+name stack search overhead.  Compiled routines reference the
+name stack by  means  of  offsets  from  the  current  stack
+pointer.  The arguments to the probed routine are bound when
+the skeleton is entered, and unless they were to be  rebound
+again  on  the  name stack when the original routine body is
+entered, there can be no further entries  put  on  the  name
+stack.
+
+     For  statements  the  shell  is  a  CEXPR  which   sets
+PROBE\PENTRY  and PROBE\INDEX, another global temporary.  It
+then calls a probing routine which increments the  statement
+counter  and  EVALs  the  original  statement.  The original
+statement is obtained from PROBE\PENTRY.OHD[PROBE\INDEX].
+
+  2.5  Notes on Timing
+
+     The method of probe  insertion  used,  being  based  on
+modification   of   the   callee,  leads  to  the  following____________   __   ___   ______
+allocation, or charging, policy of the times involved  in  a
+procedure call.
+
+        Times                           Charged To        _____                           _______ __
+        Argument binding                Caller
+        Probe entry                     Overhead
+        Routine body                    Callee
+        Probe exit                      Overhead
+        Result validation               Caller
+PROBE USER'S GUIDE                                   Page 15
+
+
+The only way to  avoid  this  particular  allocation  is  to
+modify  the  caller.  This possibility was rejected as being             ______
+impractically difficult.  To repeat, the time for a  routine
+is the computational time of the routine body only, argument
+binding and result validation being charged to the caller.
+
+     Because of the coarse  timing  increment  of  the  line
+frequency clock used by many PDP10 computers, timing results
+should be accepted only after a careful examination.   Basic
+to any timing algorithm is a formula such as
+
+             TIME = FINAL\TIME - INITIAL\TIME
+
+where the inital and final times are obtained by reading the
+system's  clock on procedure entry and exit.  One difficulty
+arises when the time spent in the procedure is less than the
+resolution of the clock.  Many compiled procedures and a few
+small uncompiled procedures run in  the  millisecond  range.
+The  line  frequency  clock has a 17 millisecond resolution.
+The result is that these procedures accumulate no or  little
+runtime.   When the accumulated overhead is subtracted, they
+will sometimes exhibit even negative total or local times.
+
+     An additional difficulty  with  timing  information  is
+that the system load (e.  g.  number of jobs, job size, IO /
+CPU mix) determines to some extent the runtime charged to  a
+job.  Identical jobs often show 5 to 10 percent variation in
+runtime.  This  variation  affects  the  time  that  probing
+routines take to run as well as the time user routines take.
+The result is that the computation of probing  overhead  may
+be  off  by  5  or  10  percent.  This is not serious if the
+overhead is a small portion of the total  runtime.   On  the
+other hand, if the probing of a package of compiled routines
+takes 5 minutes of runtime, and the routines in the  package
+take  only  1 minute to run without probing, the results are
+terrible.
+
+     Because of these difficulties, total or  local  average
+times  less than two or three times the clock resolution (34
+or 51  milliseconds)  should  be  ignored.   Timing  results
+should  also be ignored when the overhead of probing a group
+of routines is equal to, or greater, than the time the group
+of routines takes to run without probing.
+PROBE USER'S GUIDE                                   Page 16
+
+
+ 
+
+
+Appendix A:  Command Summary
+
+
+
+     The primary user interface is the routine PROBE.  It is
+called as follows:
+
+          PROBE(<options>, <module>, <routines>);
+
+The arguments are remembered in the top level bindings of
+
+                  PROBE\CURRENT\OPTIONS
+and
+                   PROBE\CURRENT\MODULE
+
+and need not be repeated every time.  If  ROUTINES  is  nil,
+then  all  the routines on the current module are considered
+to be specified.
+
+                    PROBE\IBREAK\FORM
+                    PROBE\OBREAK\FORM
+                    PROBE\SBREAK\FORM
+
+If non-nil, the above forms will be evaled rather than BREAK
+called for statement and entry and exit breaks.
+
+OPTIONS_______
+A single option or list of options.  if nil, then
+                  PROBE\CURRENT\OPTIONS
+is used.  The options in the order in  which  they  will  be
+executed are as follows:
+
+LIST(T,C,S,O)
+        List   times(T),    callers-callees(C),    statement
+        counts(S), or options(O) on PROBE\LIST\PORT.
+UP      Unparse EXPRs showing statement counts.
+INIT    Set all metering and counting information  to  zero.
+        Nil out all intermetering chains.  Do not change any
+        options.
+UNTIME  Turn off timing of a rutine but do  not  remove  its
+        PENTRY.
+UNCALL  Turn off recording of callers-callees.
+UNCOUNT(n1, n2, ...  nn)
+        Replace modified list structure  with  the  original
+        containing  no statement counters.  If no statements
+        specified, then all are removed.
+UNBREAK(n1, n2, ...  nn)
+        Remove breaks from the statements specified.  If  n1
+        =   0,   remove  entry  and  exit  breaks  from  the
+        procedure.  If nothing specified, remove all.
+COUNTS(n1, n2, ...  nn)
+        Insert statement counters into list  structure.   If
+PROBE USER'S GUIDE                                   Page 17
+
+
+        none specified, then do all.
+SBREAK(n1,n2, ...  nn)
+        Set   statements   with   tags   .nx.    to   break.
+        PROBE\PENTRY  and PROBE\INDEX will be setup when the
+        break occurs.
+ITRACE  Announce procedure entry on PROBE\TRACE\PORT.
+OTRACE  Announce procedure exit on PROBE\TRACE\PORT.
+ARGS    Print arguments on procedure entry.
+RESULT  Print result on procedure exit.
+IBREAK  Break on procedure entry.  PROBE\PENTRY is setup.
+OBREAK  Break   on   procedure   exit.    PROBE\PENTRY   and
+        PROBE\RESULT are setup when the break occurs.
+TIMES   Do timing of procedures.
+CALLS   Record callers-callees.
+FLUSH   Completely remove all  traces  of  probing  for  the
+        specified routines including their PENTRYs.
+
+MODULE______
+An id whose top level binding is (or will be made to be) the
+head  of  the  PENTRY  chain for this group of routines.  if
+nil, PROBE\CURRENT\MODULE will be used.
+
+ROUTINES________
+A single id or list of ids whose top level bindings point to
+the  routines  to be operated on.  PENTRYs for for those ids
+which don't have one in the specified module are added.   if
+nil,  all the routines on the pentry chain of the module are
+used.  A subset of the routines already in the module may be
+specified  by  listing  only  those  names  which  are to be
+operated on.
+
+OTHER ROUTINES_____ ________
+
+FLUSH\PROBE()
+
+Flushes all probe  routines.   Also  unprobes  all  routines
+probed  during  the  session  (e.g.   on the list of modules
+PROBE\ALL\MODULES).
+
+PROBE\UP(<symbol>, <port>, <symbol>)
+
+Unparses the routine associated with the first symbol on the
+given port.  The third symbol is optional and is the name of
+the probe module in which to look for the routine.
+
+PROBE\FIND(<symbol>, <symbol>; PTR(P\\PENTRY))
+
+Returns shared the ptr to the pentry  corresponding  to  the
+first  symbol  while  searching  through  the  pentry  chain
+associated with the second symbol (the module name).
+
+PROBE\MAKE\MODULE(<form>,<symbol>)
+
+In the environment of a  big  file  after  compilation,  the
+routines  on  the list pointed to by the form are put into a
+PROBE USER'S GUIDE                                   Page 18
+
+
+special list which is added to PACKAGE\NAMES.  INIT\FORM  is
+modified  so  that  on  loading  the  bin file, PROBE.BIN is
+loaded if necessary and the special list used  to  create  a
+probing module of the name given in the second argument.
+PROBE USER'S GUIDE                                   Page 19
+
+
+Appendix B:  Annotated Example
+
+     Comments not actually typed during  the  production  of
+this example begin with "...".  The actual user routines and
+test strings used are shown on the next page.
+
+ .R ECL
+
+ECL(4-5-76) LOAD"SYS:NEWS"
+
+->LOADB"PROBE.BIN"; ... Load the PROBE program.
+
+->LOAD"CC"; ... Load the user's program with
+                his routines TEST, CON, and CAT.
+
+->PROBE(<TIMES,CALLS,COUNTS>, "CC", <TEST,CON,CAT>);
+        ... Specify the options of timing, callers and
+            callees, and statement counts.
+
+->TEST(10); ... Execute the main user routine.
+
+->PROBE("LIST"); ... Request a listing of the results.
+                     The format is routine name followed by
+                     frequency count, and on the next line,
+                     total time, local time, average total time,
+                     and average local time in seconds.
+
+*TEST   1
+11.140          .191            11.140          .191
+(CALLEES)
+CAT     10
+.670            .670            .067            .067
+CON     10
+10.279          10.279          1.027           1.027
+
+(STATEMENT COUNTS)
+(.1. 10)(.2. 10)
+
+*CON    10
+10.279          10.279          1.027           1.027
+(CALLERS)
+TEST    10
+10.279          10.279          1.027           1.027
+
+(STATEMENT COUNTS)
+(.1. 1430)(.2. 2780)
+
+*CAT    10
+.670            .670            .067            .067
+(CALLERS)
+TEST    10
+.670            .670            .067            .067
+ 
+PROBE USER'S GUIDE                                   Page 20
+
+
+->PROBE("UP"); ... Wanting to see where the statement
+                   counts have been inserted, the user
+                   requests that his routines be pretty
+                   printed with the location of each count
+                   shown as a comment.  The format is
+                   (.<id no.>.  <current count>).
+
+TEST <- 
+EXPR(N:INT)
+  BEGIN
+    TO N REPEAT '(.1. 10)' */ CON(S1, S2) END;
+    TO N REPEAT '(.2. 10)' */ CAT(S1, S2) END;
+  END;
+
+CON <- 
+EXPR(A:STRING, B:STRING; STRING)
+  BEGIN
+    DECL AL:INT LIKE LENGTH(A);
+    DECL C:STRING SIZE LENGTH(B) + AL;
+    FOR I TO AL REPEAT '(.1. 1430)' */ (C[I] _ A[I]) END;
+    FOR I TO LENGTH(B)
+      REPEAT '(.2. 2780)' */ (C[I + AL] _ B[I]) END;
+    C;
+  END;
+
+CAT <- 
+EXPR(A:STRING, B:STRING; STRING)
+  PACKOBJ(CONST(STRING SIZE LENGTH(A) + LENGTH(B)),
+          CONST(STRUCT(X:STRING, Y:STRING) OF A, B));
+
+-> S1$  ... The user requests the ECL interpreter to
+            display the test strings.
+THIS IS THE FIRST TEST STRING.  THE OBJECT
+IS TO MEASURE THE SPEED WITH WHICH TWO DIFFERENT
+ROUTINES CAN CONCATENATE TWO CHARACTER STRINGS.
+
+-> S2$
+THIS THE SECOND TEST STRING. THE FIRST ROUTINE
+DOES THE CONCATENATION WITH A CHARACTER BY CHARACTER
+COPY OF THE TWO STRINGS INTO A THIRD STRING.
+THE SECOND ROUTINE USES A SYSTEM ROUTINE WHICH
+PACKS THE DATA BITS OF ONE ECL OBJECT INTO THE
+DATA BITS OF ANOTHER ECL OBJECT.
+
+->^C
+PROBE USER'S GUIDE                                   Page 21
+
+
+ 
+
+
+Appendix C:  Compiling and Calibrating Probe
+
+     To compile PROBE, execute  the  following  sequence  of
+commands:
+
+ .R ECL
+ -> COMPILE\PROBE <- TRUE;
+ -> LOAD"PROBE.ECL";
+                ... Messages from the compiler here ...
+ PROBE.BIG SIZE 2
+ PROBE.BIN SIZE 1
+ ->             ... PROBE is compiled at this point ...
+                ... PROBE.BIN is the production version ...
+                ... if the overhead constants are ok ...
+                ... as is. Otherwise, do the following:
+ ->P\\CALIBRATE();
+ OC1 = 4000
+ OC2 = 6057
+                ... and so forth to OC16 ...
+ -> DUMP\PACKAGE();
+                ... Above will produce a new BIN AND BIG ...
+                ... file with the new values ...
+
+
+     The overhead constants are stored in  the  sequence  of
+integers,  P\\OC,  and  should be recalculated when PROBE is
+moved to a new machine.  To facilitate  this  recalculation,
+the  routine  P\\CALIBRATE  was written to call each probing
+routine with appropriate dummy arguments some two  or  three
+thousand  times  and  then to calculate the average time per
+call.  In  this  way,  small  time  intervals,  one  or  two
+milliseconds,  may  be calculated even with a 17 millisecond
+clock.  A final word of caution, depending upon system load,
+the  constants  may  vary  5  to  10 percent.  This error is
+unavoidable and is due to the operating system's  allocation
+of runtime.
+  

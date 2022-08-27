@@ -1,0 +1,1455 @@
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            Additions to the ECL System and Supporting Software
+
+
+                            Since December 1974
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                           Compiled by W.R. Bush
+
+
+
+
+
+                               20 June 1979
+Additions to ECL                                                     Page 1
+
+
+                              Error Handling
+
+
+     Error Information
+
+
+
+          When an error occurs various information is available  about  the
+     nature and cause of the error.
+
+          Unless the error is  handled  by  a  user-provided  routine  (see
+     below), an explanatory message is automatically printed.  The user can
+     specify the amount of information in this message, in four  increasing
+     levels  of  verbosity.   The lowest level (verbosity=1) is of the form
+     "?CONVERT(701)", where CONVERT is the error class and 701 the specific
+     error  number.  The next level consists of a short English description
+     of the error (verbosity=2, the current default).  The third level,  in
+     addition  to the second level message, lists the error parameters, the
+     arguments that will be accepted by the CONT routine,  and  the  action
+     that will take place on continuation (verbosity=3).  The highest level
+     gives a long explanation in addition to the  second  and  third  level
+     information  (verbosity=4).   The  level  of  verbosity is set via the
+     VERBOSE option of the POKE routine (see PEEK-POKE  Options).   The  ??
+     operator  may  be  used  to  override the verbosity setting and obtain
+     additional information.  For example, if the verbosity setting  is  2,
+     after  an  error break occurs and the second level message is printed,
+     typing "??;" will print third level information and typing "??;" again
+     will  print  fourth  level information.  Continuing to type "??;" will
+     repeat the the message  cycle.   If  the  ??   operator  is  given  an
+     explicit  level  it  will  print the messages up to and including that
+     level with the exception of level one.  Thus "?? 4;" will cause  level
+     two, three, and four messages to be printed.
+
+          The variables T\1 through T\7 are bound to values related to  the
+     error.  They may be examined as an aid to understanding and recovering
+     from the error.  For example, a conversion error causes T\2 to be  set
+     to  the target mode and T\3 to the object to be converted.  Use of the
+     ??  operator or an error message verbosity of 3 can be  used  to  find
+     out what the T variables are for a particular error.
+
+          Those wanting a comprehensive list  of  all  current  errors  may
+     obtain  them  from  the file ECL:ECLSYS.ERR.  A word of warning -- the
+     first three blocks (128*3 words) are in binary.
+
+
+
+
+     User Error Handling
+
+
+
+          User error handling can be done by binding routines or blocks  to
+     special  symbols,  which  are  evaluated when particular errors occur.
+     When an error happens, if the appropriate symbol is found its form  is
+     evaluated   and  the  break  that  would  otherwise  be  performed  is
+Error Handling                                                       Page 2
+
+
+     inhibited.  For example,
+               ->CON\E <- QUOTE(CONVERT\FAIL());
+     would cause the routine CONVERT\FAIL to be called  on  any  conversion
+     errors.
+
+          Below is a list of the user traps currently recognized by the ECL
+     trap handler.
+
+
+     ARG\E               bad arguments to system routine
+     ASS\E               assignment error
+     ASSERT\E            assertion error
+     COM\E               mode completion error
+     CON\E, TF\E         conversion error
+     EOF\E, EOF\TRAP     end of file trap
+     LEN\E               length (size) related error
+     MIS\E               miscellaneous error
+     MOD\E               mode definition error
+     NOM\E               nominal-formal mode mismatch error
+     OBJ\E               pointer object in PACKOBJ, INOBJ, or  OUTOBJ  (see
+                         below)
+     OPEN\E, FNA\E       file opening error
+     OVF\E               arithmetic overflow
+     PAR\E               parse error (see below)
+     PORT\E              port related error
+     PROC\E, UPROCE      undefined procedure error
+     SEL\E, IVX\E        selection error
+     SHR\E               sharing fault
+     STK\E               stack overflow error (see Built-In Routines)
+     VAL\E               val of non-pointer error
+     CATCH\E0            Intercept any error before any other traps,  then,
+                         at the completion of the form, continue with those
+                         traps.  However, if an explicit CONT(argument)  is
+                         given,  exit  the  trap handler without performing
+                         those traps.
+     CATCH\E1            Same as above but always exit the trap handler.
+     CATCH\E             Intercept any errors not caught above and exit the
+                         trap handler (see below).
+
+
+
+
+     Additional Information on Particular Errors
+
+
+
+          OBJ\E is evaluated when INOBJ,  OUTOBJ,  or  PACKOBJ  attempt  to
+     manipulate  pointer  objects.   T\2  is shared with the pointer object
+     that cannot be processed, T\3 is bound to the  port  (or  an  internal
+     buffer for PACKOBJ), and T\4 is bound to "IN" for INOBJ and the second
+     part of PACKOBJ, and "OUT" for OUTOBJ and the first part  of  PACKOBJ.
+     This  exception  is  continuable with a substitute object.  Continuing
+     without a substitute object causes processing to proceed to  the  next
+     object, if any.
+Error Handling                                                       Page 3
+
+
+          PAR\E is evaluated in case of parse errors.  T\2 is bound to  the
+     input  port,  T\3 to the output port, and T\4 is the byte count of the
+     first character of the lexeme at which the parser detected the  error.
+     By use of random access IO, the context of the error may be displayed.
+     CONT(FALSE) from this trap will result in the current  error  message.
+     CONT(TRUE) will suppress it.
+
+          In order to trap all errors, a routine such as given below may be
+     used.
+
+               ->CATCH\E <- QUOTE(MYTRAP());
+
+               ->MYTRAP <- EXPR(....;ANY)
+                             BEGIN
+                             ....by looking at parameters decide
+                                 whether to handle error or not
+                             ....don't want to => SYSTEM\TRAP\DO();
+                             ....do want to => CONT(MY\NEW\ARGUMENT);
+                             END;
+
+     Invocation of SYSTEM\TRAP\DO is the default action taken when an error
+     occurs.  The routine prints the message relevant to the error and then
+     causes a break to occur.  SYSTEM\TRAP\DO will also  accept  a  ROUTINE
+     argument;  when  provided,  this  procedure  is called after the error
+     message is printed and instead of the break.
+
+          Mark records with the property  of  acting  like  control  floors
+     through  which  control  cannot  pass  are available.  If control (via
+     RETURN, RETBRK or RESET) attempts  to  pass  a  mark  record  with  id
+     "RETURN\E",  and if RETURN\E evaluated in the environment of that mark
+     record is a form, then the form is evaluated.  If the  result  of  the
+     form is "RETURN\E", the floor is passed through.  If the result is any
+     other object, the mark record is exited just as though there had  been
+     an  explicit  RETURN  to that mark record.  Explicit RETURNs and going
+     through the mark record by dropping out of a marked form do not invoke
+     the  trap.   Also, if RETURN\E was not a form at the time the mark was
+     made, an error is invoked.
+Additions to ECL                                                     Page 4
+
+
+                               Input-Output
+
+
+
+     OPEN, CLOSE, Random Access, and SETBYTE
+
+
+
+          OPEN has an optional fifth argument, which is a  file  designator
+     that  provides  a default device, name, extension, and ppn if the user
+     does not explicitly provide one.  For example,
+               P <- OPEN(ASK\NAME(), "IN", "SYMBOL", NIL,
+                         "DSK:FEE.FUM[25,50]");
+
+          CLOSE takes an optional boolean second argument which,  if  TRUE,
+     will  keep  any  current  version  of the file being closed from being
+     superceded.  This is useful in guaranteeing a new file and, in case of
+     error, avoiding destroying an existing version of a file.
+
+          The legal second argument to OPEN (and MAKEPF)  is  "IN",  "OUT",
+     "RANDOM",  and  "UPDATE".   "RANDOM" allows positioning of a file to a
+     specific byte number for input only.  "UPDATE" allows both reading and
+     writing.   The  SETBYTE  subr  sets the file position for files opened
+     with "RANDOM" or "UPDATE".  It takes a PORT as its first argument  and
+     an  integer  as  its  second  argument,  and  returns  an integer.  If
+     SETBYTE's integer argument is positive and less than the file size  in
+     bytes, the next input or output will be to that byte, and the previous
+     position is returned.  If the integer is zero, the current position of
+     the  file in bytes is returned, and the current position is unchanged.
+     If the integer is negative, the size of the file in bytes is returned,
+     and  the  file  is  positioned to append (the file must be in "UPDATE"
+     mode in order to append).
+
+          Having positioned a file, each input or output will be sequential
+     until another SETBYTE call is made.  When updating, the file should be
+     positioned to the first item to be changed, the  position  remembered,
+     the  item  input  and and changed, the file repositioned, and the item
+     output.
+
+          "RANDOM" and "UPDATE" will work properly only on disk  files  and
+     pseudofiles.  In particular, they will not work properly if the device
+     is DECtape, even though no error message may be given.
+
+          SETBYTE can be used to interrogate any port, not just a  "RANDOM"
+     or  "UPDATE"  port.  However, it will only change the byte position of
+     the port if it has been opened in one of those two modes.
+
+
+
+
+     INOBJ, OUTOBJ, and PACKOBJ
+
+
+Input-Output                                                         Page 5
+
+
+          In order to do binary IO, INOBJ and OUTOBJ as described  on  page
+     173  of  the manual should be used.  The description of INOBJ there is
+     in error.  The first argument to INOBJ is not a mode, but  rather  the
+     object to be written onto from the file.  If it is an integer, then 36
+     bits will be input from the file.  If  it  is  a  SEQ(INT)  of  length
+     three, then 3*36 bits will be written onto it.
+
+          Direct access files may be used with INOBJ and OUTOBJ  if  either
+     the  objects  begin  and  end on word boundaries (INTs qualify) or the
+     exact sequence of SETBYTEs and INOBJs is used to read the file as  was
+     used to write it.
+
+          It is possible to use INOBJ and OUTOBJ to read and write files in
+     ASCII.   This  is achieved by specifying not "SYMBOLIC" or "BINARY" as
+     the third argument to  OPEN  but  rather  an  integer  which  will  be
+     interpreted  as  the  byte  size  for  the file.  In the case of ASCII
+     files, specify 7 as the byte size and use objects of mode  STRING  for
+     input  and  output.  Since the items being packed are 7 bit characters
+     and the file byte size is 7, one character is  packed  into  one  file
+     byte, and 5 file bytes packed into one word achieving the standard DEC
+     ASCII file format.  The use of INOBJ and OUTOBJ  with  a  "buffer"  of
+     mode  STRING  to  copy files may result in savings of 5 to 10 times in
+     speed over the use of INCHAR and OUTCHAR.
+
+          PACKOBJ(OBJ1, OBJ2) will pack the data bits of OBJ2 into the data
+     bits   of  OBJ1  component  by  component.   It  is  analogous  to  an
+     OUTOBJ(OBJ2, P) followed by an INOBJ(OBJ1, P), but with no end of file
+     problems and much more speed.
+
+          INOBJ, OUTOBJ and PACKOBJ will handle any  non-pointer-containing
+     object.   Pointer objects may be handled via the OBJ\E trap (see Error
+     Handling).
+
+
+
+
+     The RW Package
+
+
+
+          RW has been rewritten in order to take advantage of the  extended
+     behavior  of  INOBJ  and  OUTOBJ.   RW  handles  objects with embedded
+     pointers (but with no cycles) except for  user  mode  functions.   Its
+     default  treatment  of  an object of class PTR is to dereference it on
+     output and to ALLOC an object of the correct mode  and  dimensions  on
+     input.   In  order  to do this, the file representation is preceded by
+     the mode of the dereferenced object if the pointer is a united pointer
+     and by a dope vector if the dereferenced object is length-unresolved.
+
+          The user may obtain control on input and/or output of objects  of
+     class  PTR  by binding a FORM to RDOBJ\E or WROBJ\E respectively.  The
+     object will be in T\2 (as for the OBJ\E trap).  If the user wishes  to
+     handle  a  given  object  using  the  RW  default  method, he may call
+     RWOBJ\E() immediately prior to exit.
+Input-Output                                                         Page 6
+
+
+          The file representation is upward compatible with  that  used  by
+     previous versions of RW.BIN.
+
+          RWCLOSE has been removed from the package.  CLOSE may be used  to
+     close  a  RWPORT.   A  third (second) argument has been added to ROPEN
+     (WOPEN) which is the default file name.  If no  default  extension  is
+     supplied,  the extension RW is used rather than the extension ECL.  On
+     page 199 of the ECL Manual, read  "RDOBJ"  for  "INOBJ"  in  the  last
+     example, and "CLOSE" for "RWCLOSE".
+
+
+
+
+     Other Routines
+
+
+
+          Two  routines,  DUMPIN(OBJ:ANY,  P:PORT)   and   DUMPOUT(OBJ:ANY,
+     P:PORT),  will  handle length resolved, non-pointer containing objects
+     on a port opened in dump mode.  These routines are  machine  dependent
+     and  seek  to  take  advantage of the speed of dump mode IO to special
+     devices.  The port should be opened with "DUMP" as the third  argument
+     to  OPEN.  If the object is bad, a miscellaneous error will occur with
+     T\2 the object and T\3 the port.
+
+          There is a subr, RENAME, for renaming  files.   RENAME(<new  file
+     designator>,  <old  file  designator>); will give the old file the new
+     name.  Files can also be deleted with RENAME by supplying a NIL  first
+     argument.
+
+          REVIVEPORT(<old port>, <new port>) will revive the  old  port  at
+     end  of  file  so that CONT() after end of file will succeed.  This is
+     done by replacing the old port with the new port and  eliminating  the
+     new port.  For example, if PF is a pseudofile being written into, made
+     from BUFFER, the following will expand PF by EPSILON  characters  when
+     an end of file occurs.
+
+               ->EOF\E <- QUOTE(EXPAND\PF());
+
+               ->EXPAND\PF <-
+                 EXPR()
+                   BEGIN
+                     DECL NEW\BUFFER:PTR(STRING) LIKE
+                         ALLOC(STRING SIZE LENGTH(BUFFER) + EPSILON);
+                     DECL NEW\PF:PORT LIKE MAKEPF(NEW\BUFFER, "OUT");
+                     PRINT(VAL(BUFFER), NEW\PF);
+                     REVIVEPORT(PF, NEW\PF);
+                     BUFFER <- NEW\BUFFER;
+                   END;
+
+
+
+
+     Other Features
+Input-Output                                                         Page 7
+
+
+          There is a global IO default file designator for  use  with  OPEN
+     and  RENAME,  which  may  be  read  and set with PEEK and POKE via the
+     keyword IODEFAULT.  A specific file designator supplied in an OPEN  or
+     RENAME  will  override the global default file designator.  A * in the
+     name or extension field of a file designator causes the  default  name
+     or extension to be used.
+
+          ECL:  is a pseudodevice which will  work  on  TOPS-10  and  TENEX
+     systems.  References to the compiler, editor, unparser, and other such
+     system files should be made using ECL:.  It may be read and  set  with
+     PEEK and POKE via the keyword ECLDIR.
+
+          Protections may be given between slashes in file designators, for
+     example,  RENAME("FOO.FUM/157/",  "FOO.FUM")  or  OPEN("FEE.ECL/077/",
+     "OUT").
+
+          All IO routines which require a symbolic port will  also  take  a
+     binary port with byte size 7.
+Additions to ECL                                                     Page 8
+
+
+                             Built-In Routines
+
+
+
+
+          BT has an additional function, NSBT(START, NUMBER) which displays
+     name stack entries from START (high name stack record number) to START
+     minus the absolute value of NUMBER.  If NUMBER is negative,  not  only
+     is  the  name  and mode printed, but also the value.  NSBT() will show
+     the whole name stack with record numbers, name, and mode.
+
+          COMMAND\PRINT is the name of the  routine  used  for  escape  ($)
+     printing by the ECL interpreter.  It is originally bound to PRINT.
+
+          CONS(FORM1, FORM2) = ALLOC(DTPR OF FORM1, FORM2)
+
+          LENGTH only dereferences once if given a  pointer  argument,  and
+     there  is  likewise  only one level of implicit dereferencing when the
+     object of a selection is a pointer (for example, P[I] or P.Next).
+
+          LIST( ... ) forms a list from the evaluation of each  element  of
+     its original argument list.
+
+          LISTAPPEND(FORM1, FORM2)  copies  the  top  level  of  FORM1  and
+     appends FORM2.
+
+          LISTCOPY(F) copies the list pointed to by F.
+
+          LISTEQUAL(FORM1, FORM2) performs list equality down  to  VALs  of
+     terminal REFs.
+
+          LISTSUBST(NEWF, OLDF, F) replaces all occurrences of  OLDF  as  a
+     CAR in F with NEWF.
+
+          MAKEFORM(ANYOBJ) returns ANYOBJ as a  FORM.   If  ANYOBJ  can  be
+     converted to mode FORM then MAKEFORM returns the result of conversion.
+     If not, a copy  of  ANYOBJ  is  created  in  the  heap.   Let  COPYPTR
+     represent a pointer to this copy, id est,
+               COPYPTR <- ALLOC(MD(ANYOBJ) BYVAL ANYOBJ);
+     Then if MD(ANYOBJ) is ATOM,  INT,  REAL,  DDB,  DTPR,  REF,  or  NONE,
+     MAKEFORM  returns  CONST(FORM LIKE COPYPTR).  Otherwise, its result is
+     CONST(FORM LIKE ALLOC(REF BYVAL COPYPTR)).
+
+          SAVE and RESTORE return a BOOL.  Since RESTORE restores the saved
+     environment, its apparent exit is from the invocation of the SAVE that
+     saved  the  environment.   SAVE  returns   FALSE   when   saving   the
+     environment,  but  TRUE  when  the environment has just been restored.
+     This  feature  may  be  employed  to  implement  a  checkpoint-restart
+     facility.   The  user is, of course, responsible for saving the status
+     of any open files (and their position, using SETBYTE) and closing them
+     before calling SAVE.
+
+          The STACKS subr may be used to increase or decrease the size of a
+     program's  stacks  without  losing  context.   When the STACK OVERFLOW
+     error occurs stack size may be increased.   One  may  find  out  which
+Built-In Routines                                                    Page 9
+
+
+     stack   caused   the   overflow  by  PEEK(CSNEED),  PEEK(NSNEED),  and
+     PEEK(VSNEED).  Only one  of  these  will  be  non-zero,  and  it  will
+     indicate   the   request   in   words   which   caused  the  overflow.
+     PEEK(CSSIZE), PEEK(NSSIZE), and PEEK(VSSIZE) will  give  the  size  of
+     each  stack in words, and PEEK(CSUSED), PEEK(NSUSED), and PEEK(VSUSED)
+     will give the current amount used.  Since  the  first  stack  overflow
+     (non-fatal)  causes  a  false bottom to be removed from each stack, it
+     may appear from  the  above  numbers  that  no  overflow  should  have
+     occured.   Also,  since  the  STACKS subr takes its arguments in pages
+     (512 words), it will be necessary, after calculating what  each  stack
+     should be, to add 511 (for upward rounding) and divide by 512.
+
+          On TENEX and TOPS-20 systems, the TECO and MAKE  routines  invoke
+     an  editor (ANTE) that is similar to (and combines features from), but
+     is different than both TOPS-10 and TENEX TECO.
+
+          SYNFIX(SYMBOL1, SYMBOL2) gives SYMBOL1 the parsing properties  of
+     SYMBOL2.   In effect this routine copies the SINFO, CONSTF, and RMATCH
+     fields of SYMBOL2 into SYMBOL1's fields.  It returns the original SBLK
+     field of SYMBOL1.
+
+          It is possible to synfix a user symbol to the following  elements
+     of  the  grammar  and  have  them appear in the parser output:  BEGIN,
+     DECL, EXPR, STRUCT, PROC, CASE, FOR, REPEAT, CONST, and ALLOC.  In the
+     case  of  parallel  DECLs,  the  first  DECL  synonym  represents  any
+     following DECLs.  In the case of REPEAT synonyms, the  REPEAT  synonym
+     is  carried  out to the beginning of the list structure produced where
+     it replaces the FOR normally placed there.  Thus  if  DO  is  synfixed
+     with REPEAT,
+               FOR I TO 10 DO ...  END
+     would parse as
+               (DO FOR I TO 10 DO ...) And if DO were bound to a  procedure
+     taking  a  FORM  LISTED,  that procedure could interpret the remaining
+     list structure.
+
+          EVAL will accept synonyms for EXPRs.  For example,
+
+               ->SYNFIX("RTN", "EXPR");
+
+               ->"RTN".TLB <- "EXPR".TLB;
+
+     will make RTN equivalent to EXPR, so that if
+
+               ->INC <- RTN(I:INT; INT) I + 1;
+
+     then INC will execute just as if it were an EXPR.
+Additions to ECL                                                    Page 10
+
+
+                             PEEK-POKE Options
+
+
+
+
+          The following are PEEK options only.
+
+
+     PEEK(CSNEED)        returns the number of words needed to  expand  the
+                         control stack after a stack overflow (see Built-In
+                         Routines).
+     PEEK(CSSIZE)        returns the number  of  words  allocated  for  the
+                         control stack.
+     PEEK(CSUSED)        returns the number of words used  by  the  control
+                         stack.
+     PEEK(DATE)          returns the current date in DEC  standard  15  bit
+                         format.
+     PEEK(HELP)          returns as a STRING a list  of  current  PEEK  and
+                         POKE keywords.
+     PEEK(IOCHAN, <integer>)
+                         returns the port associated with the given channel
+                         number (greater than 0 and less than 16).
+     PEEK(JOBNUMBER)     returns the number of the job running ECL.
+     PEEK(NSNEED)        returns the number of words needed to  expand  the
+                         name stack after a stack overflow.
+     PEEK(NSSIZE)        returns the number of words allocated for the name
+                         stack.
+     PEEK(NSUSED)        returns the number  of  words  used  by  the  name
+                         stack.
+     PEEK(PPN)           returns the project-programmer number of  the  job
+                         running ECL.
+     PEEK(SYSDATE)       returns the  date  and  time  of  the  ECL  system
+                         creation as an integer with the left 18 bits being
+                         the time since midnight in milliseconds,  and  the
+                         right  18  bits  being the date in standard DEC 15
+                         bit format.
+     PEEK(TIME)          returns the time since midnight in milliseconds.
+     PEEK(TTYREADY)      returns TRUE if input is waiting (and  clears  the
+                         ^O flag).
+     PEEK(VSNEED)        returns the number of words needed to  expand  the
+                         value stack after a stack overflow.
+     PEEK(VSSIZE)        returns the number  of  words  allocated  for  the
+                         value stack.
+     PEEK(VSUSED)        returns the number of  words  used  by  the  value
+                         stack.
+
+
+
+
+          The following POKE options have corresponding PEEK options.
+
+
+     POKE(ECLDIR, <file designator>)
+                         sets the identity of ECL:  (see Input-Output).
+     POKE(IOBPAG, <int>) pre-allocates the number of IO  buffers  (1  to  a
+PEEK-POKE Options                                                   Page 11
+
+
+                         port)   specified   by   <integer>,   so   that  a
+                         compactifying garbage collection need not be  done
+                         every  time  a  port  is  opened.   If the maximum
+                         amount of space (core) is required, a POKE(IOBPAG,
+                         0) will remove all IO buffers.
+     POKE(IODEFAULT, <file designator>)
+                         sets the  default  device,  ppn,  file  name,  and
+                         extension for OPEN and RENAME (see Input-Output).
+     POKE(PRETURN, <form>)
+                         causes the form to be evaluated whenever a  RETURN
+                         is done.
+     POKE(SYSVER, <symbol>)
+                         sets the type of system (for example, "TOPS-10" or
+                         "TENEX").
+     POKE(TTYFAST, TRUE) causes terminal input to be  in  character  rather
+                         than line mode.
+     POKE(VERBOSE, <integer>)
+                         sets  the  verbosity  level  for   error   message
+                         printing (see Error Handling).
+
+
+
+
+          The following are POKE options only.
+
+
+     POKE(EXIT, <integer>)
+                         exits to the monitor.  If its second argument  is:
+                         greater  than 0 then files will not be released (a
+                         soft exit); equal  to  zero  then  files  will  be
+                         released  and  ECL  will  be uncontinuable (a hard
+                         exit); less than zero then a  hard  exit  will  be
+                         done and terminal type ahead will be cleared.
+     POKE(RUN, <file designator>, <integer>)
+                         performs a RUN UUO on the specified file, with the
+                         integer starting address increment.
+Additions to ECL                                                    Page 12
+
+
+                               The Unparser
+
+
+
+
+          The unparser SET\UP  function  takes  a  fifth  argument,  called
+     LISTS,  which  controls  the display of argument lists that overflow a
+     line.  The call  SET\UP(0,0,0,0,THIN)  causes  "vertical"  formatting:
+     one  argument  form  per  line,  each  aligned with the one before it.
+     SET\UP(0,0,0,0,FAT), which is the default, puts as many list  elements
+     on one line as will fit before going on to the next.  For example,
+
+               FIE<-QUOTE(P(I+1,Z,TABLE[INDEX],
+                         [)SOME\FLAG\OR\OTHER=>THIS\WAY;THAT(], X));
+
+               ->SET\UP(0,0,0,0,THIN)$
+               (WIDTH 65 INDENT 1 HEIGHT 60 COMMENT 66 LISTS THIN)
+
+               ->UNPARSE(FIE);
+               P(I + 1,
+                 Z,
+                 TABLE[INDEX],
+                 [) SOME\FLAG\OR\OTHER => THIS\WAY; THAT (],
+                 X);
+
+               ->SET\UP(0,0,0,0,FAT)$
+               (WIDTH 65 INDENT 1 HEIGHT 60 COMMENT 66 LISTS FAT)
+
+               ->UNPARSE(FIE);
+               P(I + 1, Z, TABLE[INDEX],
+                 [) SOME\FLAG\OR\OTHER => THIS\WAY; THAT (], X);
+
+
+
+          A   new   function   has   been   added    to    the    unparser.
+     UNPARSELIST(Statements:FORM, P:PORT, Depth:INT, Indent:INT; SEQ(FORM))
+     prints the statement list given as its first argument on port P, using
+     Depth  as  the depth level at which to abbreviate (" ...  ") and using
+     Indent as an indication of starting column at the time  of  the  call.
+     (These   are  analogous  to  the  arguments  taken  by  UNPARSFM;  the
+     difference is that UNPARSELIST expects a list of zero or  more  forms,
+     not  just  a  single  form.)  For  example, UNPARSELIST(L,P,1,10) will
+     unparse the elements of list L on port P, suppressing the contents  of
+     blocks  below  the first level, and assuming the "print head" to be in
+     column 10 at the time of call.  Thus, no  extra  indentation  will  be
+     added  to  the  first  line,  but subsequent lines will be indented to
+     correspond with this initial head position.
+
+          UNPARSELIST inserts a semicolon and starts a new line between the
+     members  of  Statements, but like UNPARSFM it adds neither a semicolon
+     nor a carriage return after the last statement.
+
+          UNPARSELIST is also  capable  of  producing  "numbered  ellipses"
+     instead of the usual "..." used to abbreviate suppressed passages, and
+     in this mode, it will return a SEQ(FORM) containing  the  sublists  of
+The Unparser                                                        Page 13
+
+
+     the input statement list that have been omitted during printing.  This
+     mode is enabled using the parameter  setting  function  POKE\UP.   The
+     POKE\UP  keyword  COUNTELLIPSES  is  set  to  TRUE  to enable numbered
+     ellipses, and the parameters CASEOP and LISTOP are set to symbols that
+     are to be used for abbreviating omitted lists.  For instance:
+
+               ->POKE\UP(COUNTELLIPSES,TRUE)$
+               FALSE
+
+               ->POKE\UP(LISTOP,"??");
+
+               ->POKE\UP(CASEOP,"&&");
+
+               ->L <- <CASE[N] [1]=>1; TRUE=>N*F(N-1) END + [)P=>X;Y(]>;
+
+               ->S <- UNPARSELIST(L,NIL,1);
+               CASE[N] &&1 END + [) ??2 (]
+
+     POKE\UP returns the original value of the  parameter  being  replaced.
+     After this series of commands, S will be a sequence of two forms:  the
+     CASE statement list corresponding to &&1 and  the  ordinary  statement
+     list  corresponding  to  ??2.  If proper parsing fixities are given to
+     the operators ??  and &&, the abbreviation produced by UNPARSELIST can
+     be reparsed.  In this case, PREFIX("??") and SYNFIX("&&","=>") are the
+     appropriate commands.  ("=> expression"  is  a  legal  case  statement
+     whose internal form is (=> ([] NIL NIL) expression).)
+Additions to ECL                                                    Page 14
+
+
+                          The Compatible Compiler
+
+
+
+
+          The way compilation is done has changed slightly.  The files that
+     used  to be called PASS1, PASS2, PASS3, and SCAN are now ANALYZ, CODE,
+     ASSEMB, and SCANF, respectively.  Instead of loading and calling  SCAN
+     as  described  in  the  Manual,  one  now  uses EDITF, a file handling
+     extension of the ECL list structure editor  (see  The  List  Structure
+     Editor).  For example,
+
+      1)  .R ECL
+      2)  ECL(1-15-76) LOAD"ECL:NEWS"
+      3)  
+      4)  ->LOADB "ECL:EDITF";
+      5)  [ECL:EDIT.BIN]
+      6)  EDIT  [2.3.1976]
+      7)  [ECL:UP.BIN]
+      8)  
+      9)  ->SAVEMINE <- SCANF("MINE");
+     10)  [MINE]
+     11)  [SCANF.BIN]
+     12)  PROC2
+     13)  PROC1      KONST
+     14)  [EDIT COMPILER INPUTS, THEN "RESCAN" OR "EXIT"]
+     15)  * ... <- 1;
+     16)  * S(VAR);
+     17)  * $
+     18)  VAR;
+     19)  * UP$
+     20)  CONST\NAMES <- QL(VAR);
+     21)  * CS(VAR)$
+     22)  SHARED\NAMES <- QL(VAR);
+     23)  * S(MDKN\PAIRS);
+     24)  * $
+     25)  MDKN\PAIRS <- QL(KONST(INT));
+     26)  * EXIT;
+     27)  [MINE]
+     28)  * ZJ;
+     29)  * T-2;
+     30)  VAR _ 1.23E2;
+     31)  PROC2 <- EXPR() [) DECL KONST:INT; PROC1() (];
+     32)  * INSERT\SCAN;
+     33)  * T-2;
+     34)  LNK\NAME <- "MINE.LNK";
+     35)  COMPILE\MINE = TRUE ->
+     36)   BEGIN ... END;
+     37)  * EXIT;
+     38)  [MINE]
+     39)  
+     40)  ->... <- 2;
+     41)  
+     42)  ->UNPARSE(SAVEMINE);
+     43)  
+The Compatible Compiler                                             Page 15
+
+
+     44)  BEGIN
+     45)   PROC1 <- EXPR() VAR _ VAR + KONST;
+     46)   VAR _ 1.23E2;
+     47)   PROC2 <- EXPR() [) DECL KONST:INT; PROC1() (];
+     48)   SCAN\TERMINATE = NOTHING +> SCAN\TERMINATE();
+     49)   INIT\FORM <- QL();
+     50)   COMPILE\MINE = TRUE +>
+     51)    [) MD(LDPORT) = PORT -> CLOSE(LDPORT); EVAL(INIT\FORM) (];
+     52)   ROUTINE\NAMES <- QL(PROC2, PROC1);
+     53)   SHARE\ROUTINES <- TRUE;
+     54)   SHARED\NAMES <- QL(VAR);
+     55)   CONST\NAMES <- QL();
+     56)   MDKN\PAIRS <- QL(KONST(INT));
+     57)   EXTENDED\MODES <- QL();
+     58)   SMACRO\PAIRS <- QL();
+     59)   SMACRO\NAMES <- QL();
+     60)   CMACRO\PAIRS <- QL();
+     61)   PRELUDE\FORM <- QL();
+     62)   POSTLUDE\FORM <- QL();
+     63)   PACKAGE\NAMES <- QL();
+     64)   BIN\NAME <- "MINE.BIN";
+     65)   BIG\NAME <- "MINE.BIG";
+     66)   LNK\NAME <- "MINE.LNK";
+     67)   COMPILE\MINE = TRUE ->
+     68)    BEGIN ... END;
+     69)  END;
+     70)  
+     71)  ->SCANF("MINE",SAVEMINE);
+     72)  PROC2
+     73)  PROC1      KONST
+     74)  [EDIT COMPILER INPUTS, THEN "RESCAN" OR "EXIT"]
+     75)  * S(PACKAGE\NAMES);
+     76)  * $
+     77)  PACKAGE\NAMES <- QL();
+     78)  * ADD(PROC1,VAR)$
+     79)  PACKAGE\NAMES <- QL(PROC1, VAR);
+     80)  * EXIT;
+     81)  [MINE]
+     82)  * S(SCAN\TERMINATE);
+     83)  * $
+     84)  SCAN\TERMINATE = NOTHING +> SCAN\TERMINATE();
+     85)  * K+100;
+     86)  * INSERT\SCAN;
+     87)  * BS(**PACKAGE\NAMES);
+     88)  * $
+     89)  PACKAGE\NAMES <- QL(PROC1, VAR);
+     90)  * EXIT;
+     91)  [MINE]
+
+     Notes:
+
+          (9) SCANF's argument is the name of the file to be scanned.   Its
+               result  is  a  BEGIN-block  in  list  structure.   It can be
+               UNPARSEd, EDITed, or scanned again.  See line 71.
+The Compatible Compiler                                             Page 16
+
+
+          (14) After scanning, the Editor is used to  alter  the  tentative
+               compiler input lists and parameters.
+
+          (26) The first EXIT causes the Editor to be applied to the  (list
+               representation of) the file itself.
+
+          (28-36) The attention pointer is moved to the end  of  the  file,
+               and  the  compilation  control  code  is  inserted  with the
+               command INSERT\SCAN.
+
+          (37) On EXIT, a new copy of the source file is UNPARSEd to DSK.
+
+          (48-68) These lines have been inserted  to  control  compilation.
+               Placed  at  the  end  of  the file, they are inactive unless
+               COMPILE\MINE is bound to TRUE before loading.
+
+          (71)  To  rescan  without  rereading   the   source   file,   the
+               list-structure  copy  of  the  file  is  passed  as a second
+               argument to SCANF.
+
+          (82-85)  When  a  file  has  been  scanned  previously,  the  old
+               compilation  control commands must be deleted before the new
+               ones are inserted.
+Additions to ECL                                                    Page 17
+
+
+                         The List Structure Editor
+
+
+
+
+          A segment specification (SS) is an expression that  identifies  a
+     sequence of the list elements of the current statement.
+
+               syntax of SS:  [-] <int1>|
+                              [-] <int1> + <int2>|
+                              [-] <int1> - <int2>|
+                              <pattern>|
+                              <pattern> + <int2>|
+                              <pattern> - <int2>
+
+     An integer n1 specifies a one-element sequence consisting of the  n1th
+     list  element.  -n1 specifies a one-element sequence consisting of the
+     n1th list element from  the  end  of  the  current  statement.   n1+n2
+     specifies  a segment starting at n1 and of length n2.  n1-n2 specifies
+     a segment ending at n1  and  of  length  n2.   <pattern>  specifies  a
+     single-element  segment  containing  the  first  element that matches.
+     <pattern>+n2 is similar to <pattern>, but of length n2, etc.
+
+          DL(<ss>) deletes ss.  Ex:  DL(1+2) and DL(2-2)  both  delete  the
+     first two list elements from the current statement.
+
+          IN(<ss>, s1, ..., sn); and IN(<ss>); s1; ...; sn$ insert  s1  ...
+     sn before the segment ss.
+
+          RN(<ss>, s1, ..., sn); and RN(<ss>); s1; ...; sn$ replace ss with
+     s1 ...  sn.
+
+          M(<ss1>, <ss2>) moves ss1 to before ss2.   Ex:   M(**  ?   E,  1)
+     moves  the  first list element containing an EXPR definition as one of
+     its list elements to the beginning of the current statement.
+
+          SW(<ss1>, <ss2>) exchanges ss1 with ss2.
+
+          N(s1, ..., sn); and N; s1; ...; sn$ concatenate s1 ...  sn to the
+     end of the current statement.
+
+          OVER positions the pointer in a special context such that the new
+     current  statement is the list of statements in the old current block,
+     starting with the old current statement.  The special context  may  be
+     exited by B(-1).
+
+          XTR(<numeric ss>); and  XTR;  <numeric  ss>$  cause  the  current
+     statement to be replaced by the subsequence ss.
+
+     ----------
+
+          The logical operators ORP(<pat1>, ..., <pat n>) and  ANDP(<pat1>,
+     ..., <pat n>) exist for pattern matching.
+The List Structure Editor                                           Page 18
+
+
+          ** <pat> matches any list containing a list element that  matches
+     pat.   .* <exp> matches any list whose first element matches the value
+     of exp.  Ex:  .*"PROC" matches any PROC mode expressions.
+
+          TR(<pattern>) returns  TRUE  or  FALSE,  as  the  entire  current
+     statement  does  or  does not match the pattern.  TR differs from R in
+     that it does not search within the current statement  for  a  matching
+     expression.
+
+          The pattern matcher has a pattern defining operator.  Patterns of
+     the form
+               == <q>
+     match any expression that is equal (in the sense of list  isomorphism)
+     to the contents of register q.  As an example, the pattern
+               (*>b OR ==b) <* $b
+     replaces an expression of the form
+               b OR b
+     with the simpler expression
+               b
+
+     ----------
+
+          TS(<pattern>); and TS;<pattern>$ search for a  statement  of  the
+     current block such that the entire statement matches the pattern.
+
+          BS(<pattern>); and BS;<pattern>$ are similar to  TS,  but  search
+     backwards from the current position.
+
+     ----------
+
+          !!  is replaced with a sequence of statements entered in !  mode,
+     exempli gratia,
+
+               * I(BEGIN !! END);
+               ! a$ ! b$ ! c$$
+               * T-1;
+               [) a; b; c (]
+               * I(BEGIN ! END);
+               ! a$ ! b$ ! c$$
+               * T-1;
+               [) a(b, c) (]
+
+     ----------
+
+          TE unparses the current statement into the file  MUMBLE.TMP,  and
+     then calls TECO to edit the file.  When the user exits TECO with EX$$,
+     the file is parsed as in !   input  mode  to  produce  a  sequence  of
+     statements,   which  are  inserted  after  deleting  the  old  current
+     statement.
+
+     ----------
+
+          An editor location object is  an  object  of  mode  EDLOC,  which
+     represents the state of the editor location pointer and pushdown list.
+The List Structure Editor                                           Page 19
+
+
+          LOC() is an editor procedure of type PROC(; EDLOC) which  returns
+     a representation of the current state of the editor.
+
+          J(<location object>); When J is called  with  a  location  object
+     argument,  the editor pushdown list and statement pointer are restored
+     to the state they were in when the location object was  created.   The
+     editor  saves  the  state of its location pointer between activations.
+     When re-editing a form by evaluation of  EDIT(),  a  J;  command  will
+     reset   the  pointer  to  the  last  location  used  in  the  previous
+     application of the editor.
+
+     ----------
+
+          BLOCKS(<symbol>, <bool>); If bool is  FALSE,  BLOCKS  causes  the
+     symbol  to be recognized by B and search commands as an identifier for
+     the beginning of a  block.   If  bool  is  TRUE,  the  declaration  is
+     removed.   If  no  atoms  are  declared block headers, the editor will
+     treat as a block any list beginning with an atom.  The initial setting
+     is:  BEGIN, FOR, CASE, QL.
+
+          EDOPS(<bool>); If bool is  TRUE,  EDOPS  causes  editor  operator
+     fixities  to  be  established.   If  bool  is FALSE, it removes editor
+     operator fixities.
+
+     ----------
+
+          Certain ECL expressions, such as EXPR headers and CASE forms, are
+     difficult to edit directly in the internal representation.  The editor
+     allows such expressions to be converted to  a  single  level  list  of
+     lexemes.  The list can be edited using any of the editor commands, and
+     then the user can convert it back to an ECL form.
+
+          FLAT converts the current statement into a  list  of  lexemes  by
+     unparsing  the statement into a pseudofile and applying LEX repeatedly
+     to the unparser output.  The new current  statement  begins  with  the
+     identifier  LEX:,  to  indicate that it is a list of lexemes and not a
+     form that can be evaluated.
+
+               * $
+               a.s + b * c;
+               * FLAT$
+               (LEX: a . s +  b * c)
+               * SW(a, s)$
+               (LEX: s . a +  b * c);
+
+     When FLAT is applied to a statement which is an EXPR, CASE, or  REPEAT
+     form,  the  form is only partially reduced to lexemes.  In the case of
+     EXPR, the header is completely reduced, but the body  is  inserted  at
+     the  end  of  the  list of lexemes in its original form.  For CASE and
+     REPEAT, the header information is reduced, and the  REPEAT  statements
+     or  CASE  statements are inserted in their original form, separated by
+     semicolons.
+
+               * $
+               EXPR(a:INT; m) f(a + b);
+The List Structure Editor                                           Page 20
+
+
+               * FLAT$
+               (LEX: EXPR ( a : INT ; m ) (f(+ a b)))
+
+     Partial reduction saves processing time and  space  and  makes  lexeme
+     lists  shorter,  hence  easier  to  view.  If desired, the body can be
+     flattened by positioning to make it the current statement and  issuing
+     another FLAT command.
+
+          REPARSE converts the current statement, which must be a  list  of
+     lexemes, back into a valid ECL form.
+
+               * $
+               EXPR(a:INT; rm) body;
+               * FLAT$
+               (LEX: EXPR ( a : INT ; rm ) body)
+               * DL(rm - 2)$
+               (LEX: EXPR ( a : INT ) body)
+               * REPARSE$
+               EXPR(a:INT) body;
+
+          When editing lexeme lists, it is  often  desirable  to  insert  a
+     sequence of lexemes that does not constitute a complete, syntactically
+     valid expression.  Consider adding a new argument to an EXPR:
+
+               * $
+               EXPR() body;
+               * FLAT$
+               (LEX: EXPR ( ) body)
+               * IN(..")", <>)$
+               <!> arg:STRING SHARED$
+               (LEX: EXPR ( arg : STRING SHARED ) body)
+
+     The <> substitution operator prompts  for  input  from  the  terminal,
+     accepts  any  sequence of lexemes, and has as its result a list of the
+     lexemes entered.
+
+     ----------
+
+          UNPACK converts the current statement, which must be atomic, into
+     a list of single character lexemes.  REPACK converts a list of lexemes
+     back into a single lexeme.  For example,
+               * $
+               'abc';
+               * UNPACK$
+               (LEX: ' a b c ')
+               * DL(2);
+               * DL(-1);
+               * N(123)$
+               (LEX: a b c 123)
+               * REPACK$
+               abc123;
+
+     ----------
+The List Structure Editor                                           Page 21
+
+
+          The editor's I command allows CASE statements to be inserted when
+     the current block is a CASE form.  For example,
+               * $
+               CASE[x] [1, 2] => z; TRUE => x END;
+               * 4$
+               [1, 2] => z;
+               * I;
+                ! [3] p => w$  !$
+               * B-1$
+               CASE[x] [3] p => w; [1, 2] => z; TRUE => x END;
+
+     ----------
+
+          AB(<n>) moves the pointer up n  levels  in  the  list  structure,
+     regardless  of  whether  the  levels  have been entered as blocks.  AB
+     works regardless of marking and q-register boundaries.
+
+     ----------
+
+          EDMAP(<proc(form)>) applies its argument to the statements in the
+     current block, starting with the current statement.
+
+     ----------
+
+          In  the  M  and  IN  commands,  the  segment  spec  argument   is
+     interpreted  somewhat  differently.   Recall  that the segment spec in
+     these commands is used to specify a place where  something  is  to  be
+     inserted.   Previous  interpretation  was  that  insertion occurred in
+     front of the  segment  specified.   Now  it  is  possible  to  specify
+     insertion after a segment as follows:  if the segment is of the form
+               <n> + <n2> or <pat> + <n2> 
+     then insertion occurs after the segment  specified.   Ex:   M(1,  3+2)
+     moves the first thing to after the fourth.  M(1, -1+1) moves the first
+     thing to the end.
+
+     ----------
+
+          There is a new pattern-matching operator "...>".  This is a nofix
+     operator  which,  like  "...", matches the tail of any expression but,
+     unlike ..., saves the tail  in  the  q-register  ...>.   For  example,
+     suppose the current statement is:
+               EXPR() BEGIN a; b END
+     then after processing the pattern
+               (BEGIN ...> END) <* REPEAT x; @ ...>; y; z END
+     the current statement will be
+               EXPR() REPEAT x; a; b; y; z END
+     (This works because an expression of the form @ <id> in a  replacement
+     causes the contents of register <id> to be spread out as a sequence of
+     list elements.)
+
+     ----------
+
+          Macros that contain complex pattern arguments to pattern matching
+     functions   may  be  inefficient  due  to  the  overhead  incurred  in
+     repeatedly processing the patterns.   Basically,  whenever  a  pattern
+The List Structure Editor                                           Page 22
+
+
+     argument  is  accepted by an editor function, it must be pre-processed
+     before use by the actual pattern matcher.  Part of the  pre-processing
+     involves  copying  of  parts  of  the  pattern.  Thus the use of large
+     patterns may cause excessive garbage to be generated.  It is  possible
+     to eliminate the recopying if you are willing to have the substitution
+     operators in the pattern processed only once, before the first use  of
+     the pattern.  The technique is as follows:  instead of something like
+               M <- EXPR() BEGIN ...  R(<pattern>) ...  END
+     (where the pattern is used repeatedly in  each  call  to  M)  use  the
+     alternative:
+
+               BEGIN
+                   DECL <pattern-name>:FORM LIKE
+               EDSUB\EVAL(QUOTE(<pattern>));
+                   ...
+                   R(.. <pattern-name>);
+                   ...
+               END;
+
+     EDSUB\EVAL  is  a  procedure  local  to  EDIT  which   evaluates   the
+     substitutions.   Note  that substitutions in the replacement parts are
+     not made by EDSUB\EVAL, so this  technique  will  work  correctly  for
+     patterns such as:
+               <complex-pattern> <* !
+     where the intention is to type in a different replacement whenever the
+     pattern matches.
+
+     ----------
+
+          Statements deleted with K or DL commands are automatically loaded
+     into  register  @ after deletion, just in case you change your mind or
+     want to insert them somewhere else.
+
+     ----------
+
+          The basic pattern matching algorithm has been changed to increase
+     efficiency.   Patterns  are no longer matched against the CDR of every
+     subexpression.  Thus the pattern b(c) previously matched in both BEGIN
+     b(c)  END  and  BEGIN  b;  c  END,  but  now it matches only the first
+     example.  The old, full matching can  be  obtained  by  prefixing  the
+     pattern  with  the FM (full match) prefix operator, exempli gratia, FM
+     b(c).
+
+     ----------
+
+          The editor keeps a (constant length)  list  of  previously  typed
+     commands.   This  is  of  use  in  the  not  infrequently  encountered
+     situation in which one decides, after typing  a  series  of  commands,
+     that it would be nice to repeat the commands.
+
+          EDH; (edit history) is used to edit a segment of the history  for
+     subsequent  execution by an EXH command.  EDH constructs a list of the
+     most recent commands, loads it into q-register HIST, and positions the
+     editor  over  the  list  for  inspection and editing.  EDH-1; sets the
+     position pointer back to what it was before the previous EDH  command;
+The List Structure Editor                                           Page 23
+
+
+     use  it after viewing the command list to return to the material being
+     edited.
+
+          EXH; (execute hist) interprets the statements in register HIST as
+     editor commands, by passing them through the command interpreter.  Use
+     EXH(<q>) to interpret a register other than HIST.
+
+          HISTSIZE(<n>) sets the length of the history to n (initially 5).
+
+     ----------
+
+          There is an editor extension package, called EDITF,  that  allows
+     easier  maintenance  of ECL files using the ECL list structure editor.
+     For example,
+
+               ->LOADB"ECL:EDITF";
+               [ECL:EDIT.BIN]           (Loads editor if necessary)
+               EDIT  [1.21.1975]
+               [ECL:UP.BIN]             (Also the unparser)
+
+               ->UPDATE"FOO";
+               [FOO]                    (EDITF announces file openings)
+               * A+2000;                (Parses commands from FOO, appends
+               them
+                  .                      to a statement list for EDITing)
+                  .                     (User makes changes in the "file"
+               using
+                  .                      the regular repertoire of EDIT)
+                  .
+               * EXIT;
+               [FOO.TMP]                (Updated file first becomes
+               FOO.TMP)
+               [FOO.BAK]                (Original is saved)
+               [FOO.ECL]                (FOO.TMP is renamed)
+
+     To leave the editor without writing an output file,  use  the  command
+     QUIT instead of EXIT.
+Additions to ECL                                                    Page 24
+
+
+                                 The EXEC
+
+          EXEC  is  a  program  which  provides  an  extended   interactive
+     interface to the ECL system.  EXEC replaces both the top level command
+     interpreter  and  the  break  level  interpreter.   Among  the  useful
+     features  of  EXEC  are  a history list of all commands that have been
+     entered, and the ability to use substitution operators to simplify the
+     entry  of  commands.   The  history list features are similar to those
+     provided by the programmer's assistant in INTERLISP.   This  reference
+     guide is not intended to be a tutorial for uninitiated users of EXEC.
+
+          The  EXEC  program  can  be  started  by  the  following  command
+     sequence.
+
+               EX\EX <- 1;
+               LOADB"ECL:EDIT";
+               EXEC();
+
+          Like the usual top level command interpreter, EXEC parses a  form
+     from  CIPORT  (initially TTY:), evaluates it, and prints the result to
+     COPORT if the form was terminated  with  escape.   The  value  is  not
+     printed if the form was terminated with semicolon.
+
+          EXEC's prompting symbol is of the form n> where n is the  integer
+     command  sequence  number.   The  numbering of commands begins with 2,
+     continues up to a pre-set limit, and then  begins  again  at  1.   The
+     initial  limit  setting  is  100,  but  can  be changed by assigning a
+     different value to the variable MAX\EX.
+
+
+
+                             THE HISTORY LIST
+
+                     history list event specifications
+
+          The history list is a list maintained by EXEC of all the commands
+     that  have been entered.  EXEC contains functions which can print out,
+     modify, and re-evaluate  commands  on  the  history  list.   Thus  the
+     history  list  provides  an  accurate  record  of inputs, and makes it
+     unnecessary to reenter commands that are to be modified or repeated.
+
+          The EXEC functions that operate on the history list take as their
+     arguments   unevaluated   forms   that   are   interpreted   as  event
+     specifications.  The syntax of  event  specification  is  as  follows:
+     (n1, n2, n3 are positive integers)
+
+               <event spec> :=
+                         <initial spec> |
+                         <initial spec> + <length spec> |
+                         <initial spec> - <length spec>
+               <initial spec> :=
+                         <n1> | 
+                         - <n2> |
+                         <identifier> |
+                         <pattern>
+The EXEC                                                            Page 25
+
+
+               <length spec> :=
+                         <n3> |
+                         <identifier> |
+                         <pattern>
+               <event spec list> :=
+                         <event spec> |
+                         <event spec>, <event spec list>
+
+          An <event  spec>  identifies  a  continuous  subsequence  of  the
+     history  list,  while  an <event spec list> may be used to specify any
+     sequence of <event spec>s.  The  <initial  spec>  specifies  a  single
+     command  on  the  history  list.   If  the  <event  spec> is simply an
+     <initial spec>, then the <event spec> identifies  the  single  command
+     identified  by  the  <initial  spec>.  <n1> refers to the command with
+     sequence number n1.  - <n2> refers to the command entered n2  commands
+     previously,  exempli  gratia,  -1  refers to the previous command.  An
+     <initial spec> which is an <identifier> causes a search starting  with
+     the previous command and continuing backwards until a command which is
+     a list beginning  with  the  <identifier>  is  found.   Similarly,  an
+     <initial  spec>  which  is  a  <pattern> causes a search for a command
+     which matches the <pattern>.  The pattern may  be  any  EDIT  pattern.
+     Note  that  it  is  possible  to  search  for  a  command containing a
+     subexpression  which  matches  a  pattern  by   giving   the   initial
+     specification >> <pattern>, using the editor's >> prefix operator.
+
+          A <length spec> is used to refer to segments of the history  list
+     longer than a single command.  If the <length spec> is preceeded by +,
+     the <initial spec>  determines  the  first  (oldest)  command  in  the
+     segment.   If a - is used, the <initial spec> refers to the last (most
+     recent) command in the  segment.   <n3>  specifies  that  the  segment
+     should  have  length n3.  If the <length spec> is an <identifier> or a
+     <pattern>, a search is initiated from the position in the history list
+     indicated  by the <initial spec>.  The direction of the search depends
+     on whether + or - was used.  For +, the <initial spec>  specifies  the
+     earliest command in the segment, so the search covers commands entered
+     after the command located by the initial spec.
+
+
+                           history list commands
+
+     ?;
+     ?  <event spec>;
+
+          The command ?  <event spec> unparses the commands  identified  by
+     the  specification.   If  ?  is used as a nofix operator, the previous
+     100 commands are unparsed.  Applications of the  function  ?   do  not
+     advance  the command sequence number, and are not saved on the history
+     list.
+
+     REDO <event spec>;
+     REDO(<event spec list>);
+     REDO;
+The EXEC                                                            Page 26
+
+
+          REDO <event spec> re-evaluates the  commands  identified  by  the
+     specification,  in order on the history list.  REDO(<event spec list>)
+     is equivalent to applying the function REDO to  each  element  of  the
+     list.   When REDO is used without an argument, the previous command is
+     redone.  The value of the function REDO is always  the  value  of  the
+     last command it evaluates.
+
+     FIX <event spec>;
+     FIX;
+
+          FIX positions the editor at the first command identified  by  the
+     specification.   Then  the  user  can  make  any editing change to the
+     command, and the changed version will stay on the history list.  Other
+     commands may be reached with the editor by issuing L commands.  Do not
+     attempt to permanently  alter  the  length  of  the  history  list  by
+     inserting or deleting entire commands.
+
+     <pattern> <* <replacement>;
+
+          The <* function of EXEC searches backwards starting with the most
+     recent  command until it finds a command which either entirely matches
+     or contains a matching subexpression.  Then a copy of the  command  is
+     created  in which all matching subexpressions have been changed to the
+     replacement, and the copy is evaluated.  The value is returned as  the
+     value of <*.  The original command is not modified.
+
+     <pattern> <* <replacement> IN <event spec>;
+     IN(<pattern> <* <replacement>, <event spec list>);
+
+          IN is similar to  <*,  but  it  operates  by  making  copies  and
+     evaluating    every   command   identified   by   the   specification.
+     Re-evaluation   occurs   for   every   command   identified   by   the
+     specification, including ones with no matching subexpression.
+
+     Notes:
+          1) When an event specification  cannot  be  interpreted  (exempli
+               gratia, a pattern which matches no command), EXEC prints the
+               message ?EXEC ERROR and aborts the command.
+          2) Q-registers can be created by the *> operator in patterns  and
+               referenced  by  the  $  operator  etc.  Also, registers used
+               during the previous invocation of EDIT retain their contents
+               and can be accessed.
+
+               history commands applied to history commands
+
+          A history list command being re-evaluated by another history list
+     command  behaves  as  though  the  history  list had been shortened by
+     removing all commands entered after the  command  being  re-evaluated.
+     This  means,  for example, that searches initiated by the re-evaluated
+     command will begin with  the  command  that  was  entered  immediately
+     before it, just as during the original execution of the command.
+
+
+
+                OBTAINING THE VALUE OF THE PREVIOUS COMMAND
+The EXEC                                                            Page 27
+
+
+          The nofix function $$ returns as  its  value  the  value  of  the
+     command  entered previously.  This is useful in cases when one has not
+     saved the value of the command, but wants to use  it  again  for  some
+     purpose.   Note that the value returned by $$ is actually a BYVAL copy
+     of the value of the command.
+
+          All commands that are input to EXEC are preprocessed  to  perform
+     substitutions   indicated   by  editor  substitution  operators.   For
+     example, if N is a nofix operator, the command .."N" will  return  the
+     value  of  the  identifier  instead  of  applying  the nofix operator.
+     Conflicting uses of identifiers that are editor substitution operators
+     should be resolved with EDOPCHANGE.
+
+          The editor substitution operators are not automatically  assigned
+     operator fixities by EXEC.  The fixities normally assigned by EDIT may
+     be obtained by evaluating EDOPS(TRUE).
+
+
+
+                              ERROR HANDLING
+
+          EXEC makes use of CATCH\E to trap all errors that are not handled
+     by  some  other  trap  handler.   Thus  when  an error occurs, EXEC is
+     entered recursively.  In this situation, EXEC's prompting sign is l:n>
+     where l is the break level and n is the command sequence number.
+
+     RESET;
+
+          Returns control to the highest invocation of EXEC.
+
+     CONX(v:ANY, n:INT);
+
+          CONX is similar to CONT.  CONX(v) simply continues from an  error
+     break with the value v.  If n is greater than zero, the computation is
+     continued by exiting the EXEC n levels higher.
+
+     QUIT(n:INT);
+
+          QUIT returns control to an invocation  of  EXEC.   Thus  QUIT  is
+     similar  to  RETBRK.   The  interpretation  of  the argument, however,
+     differs from RETBRK.  The argument to QUIT  specifies  the  number  of
+     levels  of EXEC that are to be flushed, not the number of the level to
+     which control will return.
+Additions to ECL                                                    Page 28
+
+
+                               Miscellaneous
+
+
+
+
+          VECTOR(0, X) is illegal.
+
+
+
+          If the file INIT.ECL exists on a user's disk  area,  it  will  be
+     loaded each time ECL is run.
+
+
+
+          When printing, the entire UR chain of extended modes  is  scanned
+     until a user print function or a non-extended mode is reached.
+
+
+
+          The  pointer  level  for  print  suppression  has  an  additional
+     meaning.   It  limits  the  number  of  components of compound objects
+     printed.  This is particularly useful in limiting the size of  BT  and
+     NSBT printouts.
+ 

@@ -1,0 +1,337 @@
+
+
+
+                         ED, an In-Core Editor
+
+
+
+    When  an  ECL  program  is  LOADed  the  program  text is parsed and
+
+converted to an internal representation (list  structure)  used  by  the
+
+interpreter.    Once a program is LOADed, changing it involves modifying
+
+its internal representation.   ED,  an  in-core  editor,  performs  such
+
+modifications.
+
+
+    After  ED has been loaded it is invoked by saying "ED <name>;" where
+
+<name> is the name of the form (for example, an EXPR) to be edited.   If
+
+the  form does not exist "EDNEW <name>;" will create a new form bound to
+
+the given name.  ED prompts with a "+>" and accepts its  commands  in  a
+
+TECO-like  format.   ED is exited with the EX command.  All traces of ED
+
+are flushed from the environment by saying "FLUSHED;".
+
+        The main text of this document constitutes  an  introduction
+    to ED.  More complete information is offered in these notes.
+
+        In  the  examples  that  follow,  any  command  that takes a
+    numeric argument is given one.  When the argument is 1  (or  -1)
+    this  is not strictly necessary since 1 is the default and thus,
+    for example, B is equivalent to 1B and -B to -1B.
+
+        ED uses the Edit Executive (EDEX) package for command input.
+    Another package in the family, EDFILE (which uses ED and  EDEX),
+    provides in-core editing of ECL program files.
+
+        A  small amount of helpful information is available directly
+    from ED.  The ? command gives a brief summary  of  ED  commands.
+    Some  information  on EDEX is available by typing ^Z?$$.  (While
+    in ^Z mode the last few command  strings  given  to  ED  can  be
+    string-edited,  so  that,  for  example,  if a search pattern is
+    entered incorrectly it can be  fixed  and  the  search  executed
+    again.    Typing  EX$$  will  leave ^Z mode and resume normal ED
+    command input.)  When EDFILE is being used the F? command  gives
+    a  brief  command  summary for that package.  Note that commands
+    are recognized whether in upper or lower case.
+
+        Caution: during command input, after an  <escape>  has  been
+                               ED, Page 2
+
+    typed,  the  text before the <escape> cannot be changed -- it is
+    unaffected by <rubout> or ^U.  For  example,  typing  5K$^U  and
+    then  3K$$  will  result  in  the  command sequence 5K$3K$$.  If
+    commands before an  <escape>  are  to  be  flushed,  the  entire
+    command  sequence  must be aborted (by typing two ^G's in a row,
+    or using EDEX's ^Z feature).
+
+    ED views forms as blocks of statements.   Blocks  are  sequences  of
+
+expressions  bounded  by BEGIN-END, REPEAT-END, or CASE-END.  Statements
+
+are the expressions contained in blocks, and are the  entities  that  ED
+
+manipulates  --  there  are commands for inserting, deleting, modifying,
+
+and printing them.
+
+
+    The current statement of interest -- the statement  to  be  printed,
+
+modified,  and deleted, and the one before which others will be inserted
+
+-- is indicated to ED by a user-positioned pointer.  This pointer -- the
+
+current statement pointer, or cusp -- is moved with the B, J, L,  and  S
+
+commands.    The  B  command  changes block levels, the J and L commands
+
+select the statement of interest by number (J absolutely, L relatively),
+
+and the S command selects it by content.  Consider the fragment
+
+
+          BEGIN
+            LENGTH(X) # LENGTH(Y) => NOTHING;
+            FOR I TO LENGTH(X)
+              REPEAT
+                X[I] <- Y[I];
+              END;
+          END;
+
+
+as a statement in an enclosing block.  If the cusp points to a statement
+
+above the given fragment, 1B will move the cusp inside the block to  the
+
+length  equality  conditional  (with  the  old  cusp  saved on a stack).
+
+Another 1B will move the cusp to the assignment statement inside the FOR
+
+loop, and -1B will reset the cusp to the conditional (restoring the last
+                               ED, Page 3
+
+cusp  saved  on  the  stack).  With the cusp at the conditional, 1L will
+
+move it one statement down to the FOR loop, and -1L will move  it  back.
+
+2J  will set it to the FOR loop and 1J will set it back.  Again with the
+
+cusp at the conditional, 2SLENGTH(X)$ will move it to the FOR loop,  and
+
+1SX[I]$  will  then  move  it  to  the assignment statement.  The latter
+
+search does an implicit B, so after it a -1B will reset the cusp to  the
+
+FOR loop.
+
+        Notice  that  2B  is not equivalent to 1B1B -- the former is
+    breadth-oriented, the latter depth-oriented.  For example, given
+    the expression
+          [) b1 + [) b2 (] (] * [) b3 (]
+    2B will select b3, while 1B1B will select b2.
+
+        A convenient prefix to the J command is Z. Z  is  equivalent
+    to  a very large number, so that ZJ moves the cusp to the end of
+    the block.
+
+        Some additional features are associated with the S  command.
+    1)  Normally  the  pattern argument to S must be parsable.  This
+    causes problems if one wants to search for  certain  items,  for
+    example  the  FOR in the above fragment.  This difficulty can be
+    avoided with the @ prefix, which causes the string  argument  to
+    be  taken  as  a  sequence  of  lexemes,  parsable or not.  Thus
+    @1SFOR$ will find the FOR loop.   2)  The  @ modifier  also  has
+    meaning  for  the  J  command.    After a search is performed @J
+    causes editing to resume at the  point  from  which  the  search
+    began.    3)  Another  important modifier of the S command is -.
+    Usually the S command simply scans the current block,  from  the
+    current  statement  down, for the given pattern.  If it fails in
+    the current block it gives up.   The  -  prefix  indicates  that
+    searching  should  continue  beyond  the  current  block.    For
+    example,  in  the  above  fragment,  with  the   cusp   at   the
+    conditional,  -3SLENGTH(X)$  will  cause  searching  to continue
+    after the end of the fragment, proceeding down  the  form  until
+    either  the  third instance of the string is found or the end of
+    the form is reached.  4) The wildcard symbol '...' in a  pattern
+    matches  everything.  For example, LENGTH(...) matches LENGTH(),
+    LENGTH(X), LENGTH(Y), and LENGTH(X, Y, Z).  5) If S is  given  a
+    null pattern argument the last pattern searched for is used as a
+    default.
+
+        ED was designed to forgive numerical environmental mistakes.
+    Thus,  when there is no saved cusp to restore, -1B and @J do not
+    cause errors.  Likewise -100000L or 100000J are  not  errors  --
+    they  set  the  cusp  to  the first statement and the end of the
+                               ED, Page 4
+
+    block respectively.
+
+    Once  the  proper point in the form has been reached, changes can be
+
+made  with  the  commands  K,  I,  and  R. The  K  command  removes  old
+
+statements,  the  I command inserts new ones, and the R command modifies
+
+existing ones.  For example, in the above fragment, with the cusp at the
+
+conditional, 1K will delete the conditional and set the cusp to the  FOR
+
+loop.    ILENGTH(X)  #  LENGTH(Y) => PRINT('lengths unequal')$ will then
+
+insert a new conditional before the FOR loop and set the cusp to the new
+
+statement.  The command 1RNOTHING$PRINT('lengths unequal')$, which  will
+
+replace  the  NOTHING  with  the  call  on PRINT, would achieve the same
+
+result.
+
+        A command closely related to R is FS.  R and FS differ  only
+    in that, given a numeric argument n, R replaces the nth instance
+    of the given pattern, while FS replaces n instances.
+
+        Like  S,  R  and FS can be modified by @ and -.  The default
+    first pattern argument for them is the default  argument  for  S
+    (they  also set the default).  Both R and FS can be given a null
+    second pattern argument, in which case they  simply  remove  the
+    first pattern.
+
+        Sometimes  one  must  move  or  copy a statement or group of
+    statements.    The  X  and  G  commands,  analogous  to   TECO's
+    q-register  commands,  perform  this  function  by  storing  and
+    retrieving statements from named buffers, or holders.  There are
+    36 separate holders named 0 - 9 and A - Z. The X command moves a
+    given number of statements, starting at the cusp, into  a  given
+    holder (removing them after moving them).  The G command inserts
+    the  contents  of  a  given holder at the cusp, as the I command
+    would  insert  statements.    For  example,  3XY  will  move   3
+    statements into holder Y, and GY will retrieve them.
+
+        Two  additional  features  relate  to  insertion.    1)  The
+    @ prefix applies to the I command, so that lexemes, rather  than
+    parsable  ECL, can be inserted.  2) The EI command evaluates its
+    argument before inserting it.  Thus, for example, list structure
+    bound to a variable can be inserted; if Fragment <-  QUOTE(X  <-
+    Y); then EIFragment$ will insert the statement X <- Y. 
+
+    After  changes  have been made to the form it is useful to see what,
+                               ED, Page 5
+
+if  anything,  has been accomplished.  The T and V commands are used for
+
+this.  The T command displays a given number of statements -- before the
+
+cusp if the number is negative, at and after it  if  positive.    The  V
+
+command  prints  a  window of statements before and after the cusp.  For
+
+example, -2T3T will print  the  two  statements  before  the  cusp,  the
+
+statement at the cusp, and the two after it.  3V is equivalent.
+
+
+    Explicit display commands are often not needed, because they usually
+
+occur  at  the  end  of  a  command  sequence.    ED implicitly ends all
+
+sequences with 1T,  unless  the  last  explicit  command  is  a  display
+
+command.  Thus, for example, the command sequences 10J2K$$ and 10J2K1T$$
+
+are equivalent.
+
+        A  convenient prefix to the T and V commands is H. HT and HV
+    cause all the statements in the current block to be displayed.
+
+        When statements are displayed the complexity and  amount  of
+    printout   is   usually   limited  --  statements  contained  in
+    statements are suppressed and '...' is  printed  instead.    For
+    example,  in  the above fragment, with the cusp at the FOR loop,
+    1T will print the assignment as '...'.  The :  prefix  overrides
+    this  limiting.    Thus  :1T will cause the complete FOR loop to
+    appear as above.
+
+        Parsed ECL programs can be displayed in two ways.    One  is
+    with  the  unparser  (UP),  which translates list structure back
+    into readable ECL.  The other is with PFORM, which  prints  list
+    structure  as  list  structure,  in  functional  notation.  Four
+    commands, PU, PP, PN and PF,  can  be  used  to  select  display
+    method.   PU sets the method to UP, and PP sets it to PFORM.  PN
+    prints the current statement with UP,  and  PF  prints  it  with
+    PFORM.    These commands also take a numeric argument, the print
+    depth to be used.   The  print  depth  is  the  point  at  which
+    contained statements will be suppressed and '...' printed (see :
+    above).    For  example, 3PP will set the method to PFORM with a
+    depth of 3, and 2PN will print the  current  statement  with  UP
+    with a depth of 2.
+
+        Normally  ED  implicitly ends each command sequence with 1T.
+    This feature can be enabled and disabled with  the  PA  command.
+    The  command simply inverts the feature's status, so that one PA
+    disables it, and the next PA enables it again.
+                               ED, Page 6
+
+        The contents of holders can be examined with the PH command.
+    For  example,  PHY will print the contents of holder Y, and :PHY
+    will print them to infinite depth.
+
+        When a block is entered, the previous cusp is  pushed  on  a
+    stack.  The PE command displays the contents of this stack.  The
+    most  recent  entry  is  indexed  -1,  the  nth  most recent -n.
+    Entries made by the search command and used by @J have  positive
+    indices.    The command also takes as a numeric argument a limit
+    on the number of entries to print.  For example, PE  will  print
+    the  entire  stack,  and :2PE will print the last two entries to
+    infinite depth.
+
+    Sometimes the most convenient way to edit an ECL program is  not  as
+
+list  structure  but as a character string.  ED provides this feature by
+
+unparsing statements into text, allowing the text to  be  string-edited,
+
+and  then reparsing it.  The ES command converts statements to a string,
+
+which is then edited using TECO-like string facilities.  The EL  command
+
+converts  the  string back into statements, unless it will not parse, in
+
+which case ED remains in string-edit mode.  For example,  in  the  above
+
+fragment,  with  the cusp at the conditional and the NOTHING replaced by
+
+the error message, the sequence  1ES Slengths $Iare $ EL$$  changes  the
+
+error message string to 'lengths are unequal'.
+
+        Normally   the   ES  command  does  not  unparse  statements
+    contained in statements.  This is similar to  depth  suppression
+    in  printout and is useful because it avoids the translating and
+    string-editing  of  irrelevant  material.    Each   place   that
+    statements  have  been  suppressed  is  indicated  by  a  unique
+    placeholder, or token, similar to '...'.   The  form  the  token
+    takes  is  '<<n'  ('&&n' for CASE), where n is the number of the
+    token relative to others.  For example,
+          [) p => i; j (] * [) q => k; l (]
+    when processed by ES would appear as
+          [) <<1 (] * [) <<2 (]
+    The tokens themselves may be edited -- reversing  the  2  and  1
+    above cause the contents of the blocks to be swapped when EL was
+    performed.  Depth suppression can be defeated, as with printout,
+    by the : prefix.
+
+        In  general,  the  approach  to  editing  embodied  in ED is
+    line-oriented, the basic unit being the statement.   However,  a
+    few commands -- MB, MC, ME, and O -- ignore statement boundaries
+                               ED, Page 7
+
+    and treat the edited form simply as list structure.  The list is
+    the equivalent of the block, and list elements are equivalent to
+    statements.    The  cusp  becomes  conceptually  the culp -- the
+    current list element pointer.  L is used to move the culp up and
+    down the current list, selecting elements.    Most  standard  ED
+    commands work in this context -- for example, K, I, and T can be
+    used  to  remove,  insert,  and  examine  list  elements.    MB,
+    analogous to B, makes the  old  current  list  element  the  new
+    current  list,  stacking  the old value so that -1B restores it.
+    MC compresses a specified number of list elements into one,  and
+    ME  expands one list element into its component elements.  The O
+    command is similar to S, but ignores  statement  boundaries  and
+    sets the culp to a list element rather than a statement.

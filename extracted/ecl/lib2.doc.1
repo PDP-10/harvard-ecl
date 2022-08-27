@@ -1,0 +1,356 @@
+
+
+
+                                  LIB2.ECL
+
+                           Wm. Randolph Franklin
+
+     |                      September 22, 1976.
+
+
+
+
+
+
+
+
+        1.0  INTRODUCTION
+
+             LIB2 contains a new set of modes, some print formatting
+        functions  and two dozen miscellaneous functions.  The modes
+        implement EXT\SEQs which are like SEQs except that  you  can
+        append  elements to the end.  The print formatting functions
+        do two things.  First if  you  print  the  form  SPACETO(I),
+        blanks  and tabs are printed up to column #I.  Second if the
+        output file is not POPORT, you can get an automatic copy  to
+        POPORT.   The  misc  functions  reformat the stacks after an
+        overflow, shellsort, return the  daytime  nicely  formatted,
+        etc.
+
+             LIB2 loads SYS:LIB which loads SYS:UP.  If you wish  to
+        conserve  core, delete the unused functions from SYS:LIB and
+        the unparser.
+
+
+
+             2.0  EXT\SEQ
+
+             EXT\SEQ is a function that returns modes  just  as  SEQ
+        does.   It is fully compatible with SEQ except for 2 changes
+        and 2 additions.   Clearly,  since  these  are  user  modes,
+        EXT\SEQ(INT).UR  is  a structure, unlike SEQ(INT).UR.  Also,
+        you get the number  of  elements  with  LENGTH2  instead  of
+        LENGTH.   On  anything but EXT\SEQs, LENGTH2 is identical to
+        LENGTH.  The first change is that if X is an EXT\SEQ, and  L
+        =  LENGTH2(X),  then  for  I  >  L, X[L] causes new elements
+        X[L+1] to X[I] to be created with default value before  X[I]
+        is  returned.   also,  X[0] adds one element and returns it;
+        and X[-I] for I > 0, returns the I-th element from the  end.
+        All  bindclasses can be used for EXT\SEQs as for SEQs.  They
+        are interconvertible.  For example:
+
+             X <- CONST(EXT\SEQ OF 11,22,33)$
+             EXT\SEQ(11, 22, 33)
+              
+             -> X[6] <- 666;
+             -> X$
+             EXT\SEQ(11, 22, 33, 0, 0, 666);
+             -> X[-2] <- - 2$
+        LIB2.ECL - Misc useful ECL functions & modes         Page 2
+
+
+             - 2
+             -> X$
+             EXT\SEQ(11, 22, 33, - 2, 0, 666)
+             -> CONST(SEQ(INT) LIKE X)$
+             SEQ(11, 22, 33, -2, 0, 666)
+
+             EXT\SEQ(M).UR is STRUCT(LEN:INT, VAL:PTR(SEQ(M)).   LEN
+        is  the  EXT\SEQ's  length.   The SEQ is at least as long as
+        LEN.  However it may be longer since  whenever  the  SEQ  is
+        copied,  it  is made at least 20% longer.  Thus in the worst
+        case of adding elements one by one  in  order,  the  average
+        element is copied only 5 times.
+
+             The  name  of  the  mode  returned  by  EXT\SEQ(m)   is
+        EXT\SEQ\m,    i.e.     EXT\SEQ\INT,    EXT\SEQ\EXT\SEQ\REAL,
+        EXT\SEQ\SEQ(BOOL), etc.  If m's name is not  parsable  as  a
+        symbol, neither is EXT\SEQ(m)'S.
+
+             2 top level variables you might want to fine tune are:
+
+        EXT\SEQ\FACT:  The percentage increase used when the SEQ  is
+             copied   because   of   an  element  being  appendeded.
+             Initially 10.
+
+        EXT\SEQ\INCR:  If the SEQ is  so  short  that  the  increase
+             would  be  smaller  than this, an absolute increment of
+             EXT\SEQ\INCR is used instead.  Initially 10.
+
+
+
+        3.0  PRINTING FUNCTIONS AND VARIABLES
+
+             These print with optional spacing control  and  copying
+        to  POPORT.   The copy feature is that if PRINT\COPY is TRUE
+        and the file is not COPORT, POPORT or NIL, a copy is printed
+        to  COPORT.   This  is  in  effect  for all these functions,
+        except  PRINTLF.   The  spacing  feature  is  that  printing
+        SPACETO(COL)  causes  spacing to column COL.  If the current
+        column is past that, a  new  line  is  started  first.   The
+        spacing  is  done  with  an  optimal combination of tabs and
+        blanks.  Printing LINETO(line) causes the printing of CRLF'S
+        until line LINE.  If the current line is pgreater than LINE,
+        just a formfeed is printed.
+
+             These functions can handle only one  file  at  a  time.
+        They  expect  that  user print functions will call PRINTS or
+        PRINTC instead of PRINT.  If not,  future  spacing  will  be
+        wrong.   When  changing print ports you should set PRINT\COL
+        and PRINT\LINE to 1.
+
+             Following are the variables and functions:
+
+     |  FF is the formfeed char.
+        LIB2.ECL - Misc useful ECL functions & modes         Page 3
+
+
+        PRINT\COL is the current column, counting from 1.
+
+        PRINT\LINE is the current line, counting from 1.
+     |  
+     |  SPACE is the space char.
+     |  
+     |  VT is the vertical tab char.
+
+        LINETO(I:INT; LINETO\M) lifts I to a new  mode  that  PRINTS
+             catches and uses to do line spacing.
+
+        NEXT\TAB\STOP(I:INT; INT) returns the column number  of  the
+             next tab stop after column #I.
+
+        PRINTC(A:ANY, P:PORT; ANY) prints A to  P  with  a  copy  to
+             COPORT  if  1) PRINT\COPY = TRUE, 2) P # POPORT, 3) P #
+             COPORT.  It does no spacing.  It returns A.
+
+        PRINTCLF(A1:ANY, A2:ANY, A3:ANY, ..., P:PORT)  PRINTC's  A1,
+             A2,  A3,  ...   Because  of  the  syntax, P must not be
+             omitted.
+
+        PRINTLF(A1:ANY, A2:ANY, A3:ANY, ..., P:PORT) prints A1,  A2,
+             ...   to  P  without copying or spacing.  P must not be
+             omitted.
+
+        PRINTS(A:ANY, P:PORT;  ANY)  prints  A  to  P  with  spacing
+             control and returns A.  It also copies as PRINTC does.
+
+        PRINTSL(A1:ANY, A2:ANY, ...) does PRINTS on A1, ...  with  P
+             defaulted (to POPORT).
+
+        PRINTSLF(A1:ANY, A2:ANY, ..., P:PORT) does PRINTS(Ai, P) for
+             A1, ...  P cannot be omitted.
+
+        SPACETO(I:INT; SPACETO\M) lifts I to a new mode that  PRINTS
+             catches and uses for column spacing.
+
+             For example, PRINTSL(1, SPACETO(10), 2, SPACETO(15), 3,
+        SPACETO(5), 4) prints as:
+
+        1        2    3
+            4
+
+
+
+             4.0  MISC FUNCTIONS AND VARIABLES
+
+     |  ANY\GE(A:ANY, B:ANY; BOOL) compares A and B and returns TRUE
+     |       if  A>=B.   Let M=MD(A).  B IS CONVERTED TO M.  IF M IS
+     |       ARITH, CHAR OR NONE, COMPARE THE OBVIOUS WAY.  ELSE  IF
+     |       CLASS(M)   =  BASIC,  convert  to  STRING  and  compare
+     |       lexicographically.  Else if CLASS(M) = PTR  dereference
+     |       A  and  B.   Else  if  M  is  a ROW, EXT\SEQ or STRUCT,
+     |       compare component by component.
+        LIB2.ECL - Misc useful ECL functions & modes         Page 4
+
+
+     |  APPLY\TO\LIST\ELTS(L:FORM, R:ROUTINE) applies R to  the  top
+     |       level elements of L thus:  R(L.CAR), R(L.CDR.CAR), etc.
+
+        APPLY\TO\COMPONENT(S:ANY,  R:PROC(ANY,  ONEOF(NONE,  SYMBOL,
+             INT)  This  applies  R  to  all  components of the ROW,
+             STRUCT, SEQ or EXT\SEQ S.  R is called thus:  R(C,  NI)
+             where  C  is the component and NI is its name if S is a
+             struct, its number if S is a ROW,  SEQ  or  EXT\SEQ  or
+             NOTHING if S is BASIC or PTR.  In the latter case, C is
+             S.
+
+        COMPONENT\MD(M:MODE; MODE) RETURNS the component mode of  an
+             EXT\SEQ or ROW, otherwise NONE.
+
+        COMPRESS(A:ANY, B1:ONEOF(SEQ(BOOL),  INT),  B2:INT,  B3:INT,
+             ...;  MD(A)) compresses a SEQ or EXT\SEQ A, by deleting
+             certain elements.  If MD(B1) = SEQ(BOOL),  then  delete
+             A[I]  iff B[I].  In this case B2, B3, ...  are ignored.
+             Else, B1, B2, ...  must eval to  INTs.   A[B1],  A[B2],
+             ...  are deleted.
+
+        CONCAT(A1:BASIC, A2:BASIC, A3:BASIC, ...; STRING) evals  and
+             converts  a  variable  number  of  args  to STRINGs and
+             concatenates them.
+
+        CONCAT2(F:FORM;  STRING)  evals,  converts  to  strings  and
+             concatenates the elements of the list F.
+
+        CONS\E(A:FORM, B:FORM; FORM) cons's 2 forms.
+
+        COPY\FILE(OUT:SYMBOL, IN:SYMBOL) copies file IN to file OUT.
+
+        COUNT\SYMBOLS(; INT) returns the number of existing ATOMs.
+
+        DAYTIME(; STRING) returns the current date and time,  nicely
+             formatted.  This function is nofix.
+
+        EXPAND(S:ANY, I1:INT, K1:INT, I2:INT,  K2:INT,  ...;  MD(S))
+             expands  the  SEQ  or  EXT\SEQ  S  by  inserting I1 new
+             elements of  default  value  before  S[K1],  I2  before
+             S[K2],  etc.   The  renumbering  of S's elements is not
+             done until all the insertions are made.
+
+        EXT\SEQ\COMPACT(A:ANY; ANY) A is an  EXT\SEQ  or  a  SEQ  or
+             STRUCT  containing  or  a  PTR  to an EXT\SEQ.  All the
+             unused elements at the end of A  are  deleted  to  save
+             space.  This is also done recursively to all components
+             of A.
+     |  
+     |  EXT\SEQ\CONCAT(A:EXT\SEQ, B:EXT\SEQ; EXT\SEQ) concatenates 2
+     |       EXT\SEQs.
+     |  
+     |  EXT\SEQ\DECR(A:EXTsEQ SHARED,  I:INT)  deletes  the  last  I
+     |       elements of the EXT\SEQ A.
+        LIB2.ECL - Misc useful ECL functions & modes         Page 5
+
+
+        FCOMP(A:FORM, B:FORM; BOOL) compares  2  forms  and  returns
+             TRUE  if they are identical.  If they are different, it
+             recursively prints the first place  they  differ,  from
+             the smallest sublist out.
+
+        FEQ(A:FORM, B:FORM; BOOL) just compares 2 forms.
+     |  
+     |  FILE\EXIST(FILENAME:SYMBOL; BOOL) returns true if  the  file
+     |       FILENAME  exists.   The  usual  defaults  such  as .ECL
+     |       apply.
+
+        FORM\COPY(A:FORM; FORM) returns a pure copy of A.
+
+        IDENT\FORM(A:SEQ(SYMBOL)  SHARED)  A's  components  eval  to
+             forms.  For any pair that are equal, replace the second
+             name by the first.  By  equal  I  mean  identical  list
+             structure, not only equal first level pointers.
+
+        IS\EXT\SEQ(A:MODE; BOOL) returns whether  A  is  an  EXT\SEQ
+             mode.
+
+        IS\IN\FORM(F:FORM, A:ANY; BOOL) returns TRUE if BASIC  A  is
+             anywhere in FORM F.
+
+        LAST(A:FORM; ANY) returns the last element of list A.
+
+        LENGTH2(A:ANY; INT) acts like  LENGTH  except  if  A  is  an
+             EXT\SEQ when the number of components in A is returned.
+             (LENGTH would look at LOWER(A) then).
+
+        LIST\SYMBOLS(;  SEQ(SYMBOL))  returns  a  sequence  of   all
+             currently existing symbols.
+     |  
+     |  NEWfILE(FILE\PREFIX:SYMBOL;  SYMBOL)  catenates  the   first
+     |       integer   from   1  up  after  FILE\PREFIX  to  make  a
+     |       nonexistant file name and returns it.
+     |  
+     |  QUOTE2(F:FORM UNEVAL; FORM) quotes its arg like QUOTE except
+     |       that  all  calls  to  ..   in  F that do not themselves
+     |       contain references to ..  are evaled.   .   is  prefix.
+     |       If  ..(---)  evals  to  a  symbol,  mode or form, it is
+     |       inserted  directly  without  an  extra  pointer.    For
+     |       example if Q1 = QUOTE1 and Q2 = QUOTE2 then
+     |            Q2(1 + ..(2 + 3) + 4) = Q(1 + 5 + 4)
+     |            Q2(1 + ..(2 + ..(3))) = Q(1 + ..(2 + 3))
+     |            Q2(Q2(1 + ..(2 + ..(3)))) = Q(1 + 5)
+
+        RESTACK() prints the sizes and amounts used of the 3 stacks.
+             Then  if  any  stack needs more space, it increases the
+             sizes of all stacks to 2 pages more than they need  and
+             CONTinues.
+
+        SEQCONCAT(A:SEQ(ANY), B:SEQ(ANY); SEQ(ANY))  concatenates  2
+             SEQ's.
+        LIB2.ECL - Misc useful ECL functions & modes         Page 6
+
+
+        SORT(RECS:SEQ(ANY), USERGE:PROC(ANY, ANY; BOOL))  shellsorts
+             RECS  using  USERGE to test for GE.  If omitted, USERGE
+             defaults to GE.  The increments used are 1, 4, 13,  40,
+             121, ...  If N = LENGTH2(RECS), then the average number
+             of records moved is 1.66 * N ** 1.25 where  '**'  means
+             exponentiation.  RECS itself is modified.  No result is
+             returned.  Ref:  Knuth, vol.  3, pp 84-95.
+
+        SPLIT\LEX(LIST:SYMBOL;  SEQ(SYMBOL))  Considering  L  as   a
+             string  of  chars,  this  splits  it  into  lexemes and
+             returns them in a SEQ.  The lexemes are assumed  to  be
+     |       SYMBOLs, not INTs, etc.
+     |  
+     |  STRING\COMP(A:STRING,  B:STRING;  INT)  compares  A  and   B
+     |       lexicographically and returns:
+     |          -1 if A < B
+     |           0 if A = B
+     |           1 if A > B
+     |  
+     |  STRING\GE(A:STRING, B:STRING; BOOL) lexically compares A & B
+     |       char by char and returns TRUE if A>=B.
+     |  
+     |  SUBSTR(A:STRING, I:INT,  J:INT  BYVAL;  STRING))  returns  a
+     |       string composed of the chars A[I] to A[I+J-1].  If J=0,
+     |       from A[I] to the end of A is returned.
+     |  
+     |  SYMBOL\GE(A:SYMBOL,  B:SYMBOL;  BOOL)  converts  A  &  B  to
+     |       strings and compares lexically.
+     |  
+     |  TCONC(A:ANY, F:FORM; FORM) adds A as a new last  element  of
+     |       the list F.  It modifies F and returns F.
+
+
+
+        5.0  NAME LISTS
+
+             All the functions, variables & modes defined  here  are
+        listed  in  a  few variables for quick reference and so that
+        they can be flushed.  This should be  done  carefully  since
+        functions  in  one group can call functions in another.  The
+        lists are called:
+
+             1.  EXT\SEQ\NAMES   -   The   EXT\SEQ   functions   and
+                 variables.
+
+             2.  PRINT\NAMES - The  printing  functions,  modes  and
+                 variables.
+
+             3.  LIB2\NAMES - The misc functions and variables.
+
+        LIB2.ECL - Misc useful ECL functions & modes         Page 7
+
+
+             6.0  ERROR TRAPPING
+
+        If there is no stack overflow trap when LIB2 is loaded,  the
+        trap is set to call RESTACK.
+
+
+
+             7.0  USER COMMENTS
+
+     |  Send comments, complaints, etc.  to FRANKLIN@HARV-10.  Phone
+     |  498-4207.   The  source code is currently on DTA 2186 in bin
+     |  153.  I move things around periodically so see  me  if  it's
+     |  not there.
+   

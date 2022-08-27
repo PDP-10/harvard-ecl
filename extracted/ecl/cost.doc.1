@@ -1,0 +1,562 @@
+
+
+
+ 
+
+
+
+
+
+                     COST USER'S GUIDE
+
+
+
+
+
+                     William R. Conrad
+
+
+
+
+
+                     November 19, 1976
+
+
+
+
+
+                     Harvard University
+
+        Center for Research in Computing Technology
+
+                  Cambridge, Massachusetts
+
+
+
+
+
+This work was supported in part  by  the  Advanced  Research
+
+Projects Agency under contract N00039-76-C-0168 and Rome Air
+
+Developement Center under contract F-30602-74-C-0032.
+
+COST USER'S GUIDE                                     Page 2
+
+
+ 
+
+
+
+
+
+
+
+        Introduction
+
+
+        1.  General Cost Expression Format
+
+        2.  Costing Operators
+
+        3.  Match Variables and Pattern Matching
+
+        4.  Cost Program Commands
+
+        5.  Program Operation
+
+
+Appendix A: Illustrative Example
+Appendix B: Summary of Commands and Operators
+Appendix C: Algorithms and Data Format
+COST USER'S GUIDE                                     Page 3
+
+
+ 
+
+
+
+
+                        Introduction
+
+     It is often helpful  to  be  able  to  measure  certain
+properties  of  expressions  in a programming language.  For
+example, the choice of a means of set  representation  might
+depend  on the average size of the sets commonly encountered
+at given points in a  program  and  the  possible  tradeoffs
+between  size  and time.  In sorting operations, it could be
+useful to determine the  number  of  times  one  element  is
+interchanged  with  another  using  actual  sample data.  To
+obtain such  information,  the  ability  to  insert  probes,
+hereafter called costing operators, into user expressions is
+needed, as is some means whereby the user can calculate  the
+information  of  interest  at that point.  The example below
+will illustrate the case where the  information  desired  is
+numberic in nature.  Consider the case of the expression, (x
+ISIN y), where y repesents a  set,  and  the  function  ISIN
+tests for membership of x in y.  let us assume that there is
+a convenient way to transform the above expression into  the
+expression,
+                 (x ISIN ( y /- CARD(@@) )
+where /- is a costing operator, CARD a function that returns
+the cardinality of its argument, and @@ the name by which /-
+binds its first argument, y.  Now if the program  containing
+the  above  expressions  is  run  a number of times, and the
+costing program asked to display the results, the  following
+will be seen.
+         (x ISIN ( y /- CARD(@@)) := 3<<12(5)<<18)
+The first number is the minimum, the next  is  the  average,
+the number in parentheses, the variance, and the last number
+the maximum of the cardinalities.  There  are  a  number  of
+costing  operators,  such  as  /-  defined  in  the  costing
+program, and a means of inserting them using  the  rewriting
+package  (see the RERITE USER'S GUIDE, W.  R.  Conrad Aug 15
+1976).
+
+     The  example  in  Appendix  A  will  show  the   actual
+operation  of  the  COST  program,  and  might profitably be
+quickly read before the remainder of this guide.
+COST USER'S GUIDE                                     Page 4
+
+
+  1.  General Cost Expression Format
+
+     The format of  costing  expressions  when  the  costing
+operator is used as an infix operator is as follows.
+              <userexp> <costop> <usermeasure>
+Userexp is some user  expression  which  is  to  be  costed,
+costop is the desired costing operator, and usermeasure is a
+form which computes the number or  other  characteristic  of
+interest.   The  costop  binds userexp to the variable @@ so
+that  it  is  available  to  the  usermeasure   form.    The
+expression, (x ISIN ( y /- CARD(@@)), in the introduction is
+an example with y the userexp, /- the costop,  and  CARD(@@)
+the  usermeasure.   When  the costing operator is used as an
+prefix operator, the format is
+                     <costop> <userexp>
+and usermeasure is defaulted to @@ or the value of  userexp.
+An example is the expression
+               FOR I TO /> AL REPEAT ... END
+where the costing operator is applied to AL.
+
+     In the section on pattern matching, a convenient  means
+of  automatically  installing costing operators at specified
+places will  be  given.   The  next  section  discusses  the
+costing  operators  and the formats in which they show their
+results.
+
+  2.  Costing Operators
+
+     All costing oeprators are both prefix and infix (with a
+priority  of  10).   When  used as prefix operators they all
+default their second argument to @@  or  the  value  of  the
+first  argument.   The  minimum, average, variance, maxinum,
+and sum are of the second argument, e.   g.   <usermeasure>,
+with  respect to the count or number of times the particular
+cost expression has been executed.  The  slash-underline  or
+slash-backarrow  operator  is special in that its associated
+data entry is a REF, and the user  must  update  the  actual
+data  and provide a user print function for the value of the
+REF.  (see Appendix C).   Otherwise  the  costing  operators
+differ  only in the manner in which they print their results
+as shown below.
+
+        /-      costexp =:  min<<avg(var)<<max
+
+        /=      costexp =:  min<<avg<<max
+
+        /#      costexp =:  avg
+
+        />      costexp =:  sum(count)
+
+        /@      costexp =:  avg as percent
+
+        /+      costexp =:  count
+
+        /_      costexp =:  user specified format
+COST USER'S GUIDE                                     Page 5
+
+
+  3.  Match Variables and Pattern Matching
+
+     Cost expressions may be given with  the  exact  literal
+components  of  the  expression  specified.   Such a costing
+expression or pattern might be  INVERT(/_  A  *  B  ),  and,
+indeed, the rewriting package which the cost package uses to
+install costing expressions will convert  all  instances  of
+INVERT(A  *  B) into INVERT(/_ A * B ).  Often, however, the
+user wants  more  general  patterns  or  expressions.   Such
+flexibility  is  provided  by  the  use  of  wildcard  match
+variable operators which  the  rewriting  package  provides.
+One  such  operator  is  $$ followed by an identifier.  This
+operator specifies one argument or list element,  and  using
+it,  the above pattern could be expressed as INVERT(/_ $$X).
+This new pattern would match INVERT(P), INVERT(L+M) and  any
+other  cases  of invert being called with one argument.  The
+??  operator specifies whole lists, and  could  be  used  as
+follows:   /+ INVERT(??Z).  This pattern would match any use
+of INVERT as a function with any  number  of  arguments.   A
+more  likely  use  of ??  would be in putting a counter on a
+block as with the pattern, /+ [) ??Z;INVERT(??Y);??X(] which
+will  match  any block containing a call on INVERT.  Various
+other match variable operators and ways to use them  may  be
+found   in   the  RERITE  USERS'  GUIDE  referenced  in  the
+introduction.
+
+  4.  Cost Program Commands
+
+     When the  costing  package  has  been  loaded,  certain
+functions  are  provided the user via the following commands
+to the COST routine.  The method of entering these  commands
+--  and  of  entering cost expression patterns and EXPR name
+lists -- is given in section 5.
+
+INSTALL Insert the costing expressions to be  given  in  the
+        EXPRs  to  be  given.   If no cosing expressions are
+        given, then all  of  the  previously  given  costing
+        expressions  are assumed as the default.  If no EXPR
+        names are given then all  of  the  previously  given
+        names  are assumed as the default.  This command has
+        the side-effect that data associated with previously
+        installed  costing  expressions is initialized since
+        the installation of costing expressions requires the
+        copying   of   the  EXPRs  involved.   Such  copying
+        destroys  the  relationship  between  given   costed
+        expressions and their entries in the hash table.
+
+REMOVE  Remove  the   costing   probes   from   all   costed
+        expressions  matching  the given cost expressions in
+        the given EXPRs.  The same defaults as  for  INSTALL
+        apply,  meaning  that if the costing expressions and
+        names are defaulted, then all costing expressions in
+        all EXPRs are removed.
+
+COST USER'S GUIDE                                     Page 6
+
+
+SHOW    Unparse the  given  EXPRs  showing  the  results  of
+        running those EXPRs.  Each costed expression has its
+        results displayed in  a  format  particular  to  the
+        costing  operator  involved.   When  this command is
+        given, it is assumed that all costed expressions  in
+        the  given  EXPRs  are  to  be  shown  so  that  the
+        specification of costing expressions is unnecessary.
+
+EXPS    Show the current set of costing  expressions.   This
+        set  is a list of all costing expressions which have
+        been given to the costing package up to the time  of
+        the  command.   Neither costing expressions nor EXPR
+        names need be given with this command.
+
+NAMES   Show the current set of EXPR names.
+
+INIT    Initialize  the  data   entries   for   any   costed
+        expressions  in  the  given  list of EXPRs.  Costing
+        expressions need not be given for this command.
+
+RESTART Remove all costed expressions from all EXPRs,  clear
+        the  EXPR  name  list  and  list of previously given
+        costing expressions, and initialize the hash tables.
+        Neither  costing  expressions nor EXPR names need be
+        given for this command.
+
+FLUSH   Do a RESTART command, and then  flush  all  routines
+        and  variables  associated with the costing package.
+        Should not be used unless one is finished  with  the
+        costing package.
+
+  5.  Program Operation
+
+     The facilities of the costing package are  obtained  by
+loading  the  file  COST.BIN  with  the LOADB command.  Once
+loaded, the routine COST must  then  be  called,  and  three
+items  of information given.  First, the desired function or
+command to be performed must be given (such  as  INSTALL  or
+REMOVE).   Second,  for  commands which require them such as
+INSTALL, costing expression patterns must be given.   Third,
+a  list  of  the EXPRs to which the command is to be applied
+must be given.  These items of information may be  given  as
+explicit  arguments  to  the  COST  routines, or they may be
+entered interactively.  The interactive or  dialogue  method
+will be discussed first.
+
+     If the COST routine is called with  an  empty  argument
+list,  as  in  the  expression  COST();,  it  goes  into  an
+interactive or dialogue mode, prompting the user in turn for
+COMMAND?,  COSTING  EXPRESSIONS?, and EXPR NAMES?.  Only one
+command may be given per call on the COST routine,  and  the
+command  should  be  terminated  by either a semicolon and a
+carriage return, or  by  an  escape  or  altmode  character.
+After the command is given, one or more cost expressions are
+asked for.  These cost expressions should be terminated by a
+COST USER'S GUIDE                                     Page 7
+
+
+semicolon,  and are constrained to be legal ECL expressions.
+To terminate cost expression entry,  an  altmode  or  escape
+should  be typed.  Just typing an altmode or escape defaults
+the cost expression list.  Lastly, none or more EXPRs  names
+may  be  entered  separated  by  semicolons.   An altmode or
+escape terminates EXPR name entry.  The  interactive  method
+is  most  useful for the intial specification of a number of
+costing exprssions and  EXPR  names.   For  several  of  the
+commands,  it  is simplier to give the arguments to the COST
+routine explicitly as explained below.
+
+     If one or more of the arguments to the COST routine  is
+not  nil, the dialogue mode is avoided, and the COST routine
+works with the  arguments  it  has  been  explicitly  given.
+Formally, the COST routine takes three arguments.  The first
+is a SYMBOL UNEVAL and is the command to be  peformed.   The
+second,  a FORM BYVAL, is a list of costing expressions, and
+the third, also a FORM BYVAL, is a list of EXPR  names.   If
+either  of  the  second  two  are nil or defaulted, then the
+previously accumulated lists of costing expressions or names
+is  assumed as the default.  The non-dialogue mode is useful
+for three purposes.  First, it might be desirable to use the
+COST  routine  as a subroutine to some other larger metering
+package.  Second, a list  of  costing  expressions  or  EXPR
+names  may  already  be  available, and it is desired not to
+retype them.  Third, some of the commands are such that they
+either do not require further arguments or that the defaults
+(e.g.   previously  entered  arguments)  are   satisfactory.
+COST(SHOW), COST(REMOVE), COST(EXPS) are examples.
+
+     There are three top-level variables which could  be  of
+interest  to the user in some cases.  COST\CURRENT\MODULE is
+the pointer  to  the  current  data  base  for  the  costing
+package.   It  is a structure containing hash tables, a list
+of EXPR names, and a list of costing expressions.  The  SHOW
+command  directs  its  output  to COST\CURRENT\PORT, and the
+user should set this variable if he desires output  to  some
+device  other  than  the  teletype.   The pretty-printing of
+EXPRs showing their costing results is obtained by setting a
+filter  function  into  the unparser via the POKE\UP(FILTER,
+...  ) option.  This function examines each form that it  is
+given  and either gives it back to the unparser for printing
+as is, or  builds  a  new  form  incorporating  the  costing
+results  as  obtained from the hashtable data entry for that
+form.  COST\CURRENT\FF, if not nil,  will  be  used  as  the
+pointer to the filter function.  
+COST USER'S GUIDE                                     Page 8
+
+
+  Appendix A:  Illustrative Example
+
+     In the example below, the user wishes  to  characterize
+the  length  of strings which are concatenated in two places
+in his routine TEST.  In this deliberately made up  example,
+the  lengths  are  quite  different  from  the first call on
+CONCAT to the second call illustrating  a  case  that  might
+occur  in  real  life,  and  which  might suggest the use of
+different algorithms at different  places.   Lines  starting
+with ...  are comments.
+
+.ECL
+ECL(10-29-76) LOAD"SYS:NEWS"
+
+->LOADB"ECL:COST";
+
+[RERITE.16]
+[COST.1]
+
+->LOAD"CTEST";   ... LOAD THE USER FILE CONTAINIG
+                        TEST AND CONCAT.
+
+->COST; ... INVOKE DIALOGUE WITH COST PACKAGE.
+
+TYPE ";" BETWEEN ENTRIES; ESCAPE AFTER LAST
+COMMAND?
+INSTALL$  ... SAY I WANT TO PUT SOME COSTING
+                OPERATORS IN.
+COSTING EXPRESSIONS?
+CONCAT($$X /- LENGTH(@@), $$Y /- LENGTH(@@))$
+        ...  THE ABOVE REWRITING PATTERN SAYS THAT ANY
+                CALL ON CONCAT SUCH AS CONCAT(S1, S2) IS 
+                TO BECOME CONCAT(S1 /- LENGTH(@@),
+                                 S2 /- LENGTH(@@)).
+EXPR NAMES?
+TEST$  ... JUST ONE ROUTINE NAME THIS TIME.
+
+->TEST(10);  ... INVOKE THE USER PROGRAM TO GET SOME
+                STATISTICS ON THE ARGUMENTS TO CONCAT.
+
+->COST(SHOW);  ... NON-DIALOGUE METHOD, SAY SHOW RESULTS.
+
+TEST <- 
+EXPR(N:INT)
+  BEGIN
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I * I;
+        DECL S2:STRING SIZE I * I + I;
+        CONCAT(S1 /- LENGTH(@@) =: 1 << 39(1168) << 100,
+               S2 /- LENGTH(@@) =: 2 << 44(1379) << 110);
+      END;
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I;
+COST USER'S GUIDE                                     Page 9
+
+
+        DECL S2:STRING SIZE I + 5;
+        CONCAT(S1 /- LENGTH(@@) =: 1 << 6(9.17) << 10,
+               S2 /- LENGTH(@@) =: 6 << 11(9.17) << 15);
+      END; ... RESULT FORMAT IS
+                MIN<<AVGERAGE(VARIANCE)<<MAX.
+  END;
+
+->UNPARSE(TEST); ...SHOW THAT THE ABOVE RESULTS ARE NOT
+                REALLY IN THE LIST STRUCTURE AT ALL
+                BUT ARE INSERTED AS PART OF THE PRETTY-
+                PRINTING BY THE COSTING PACKAGE.
+
+EXPR(N:INT)
+  BEGIN
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I * I;
+        DECL S2:STRING SIZE I * I + I;
+        CONCAT(S1 /- LENGTH(@@), S2 /- LENGTH(@@));
+      END;
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I;
+        DECL S2:STRING SIZE I + 5;
+        CONCAT(S1 /- LENGTH(@@), S2 /- LENGTH(@@));
+      END;
+  END;
+
+->COST(REMOVE);  ... SAY REMOVE ALL COSTING EXPRESSIONS.
+
+->UNPARSE(TEST); ... SHOW WHAT TEST ORIGINALLY LOOKED LIKE
+                BEFORE COST DID ANYTHING TO IT.
+
+EXPR(N:INT)
+  BEGIN
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I * I;
+        DECL S2:STRING SIZE I * I + I;
+        CONCAT(S1, S2);
+      END;
+    FOR I TO N
+      REPEAT
+        DECL S1:STRING SIZE I;
+        DECL S2:STRING SIZE I + 5;
+        CONCAT(S1, S2);
+      END;
+  END;
+
+->
+COST USER'S GUIDE                                    Page 10
+
+
+  Appendix B:  Summary of Commands and Operators
+
+     The routine COST is the interface between  the  costing
+package  and the user.  It takes three arguments, a command,
+a cost expression list, and a EXPR name list.  If all  three
+arguments  are  missing,  a dialogue is initiated asking for
+the input of these arguments.  If the  command  argument  is
+given,  then  either  the  second  or  third argument may be
+defaulted  to  the  cumulative  history  list   of   costing
+expressions   and  EXPR  names  which  the  costing  package
+maintains.  Below are the commands.
+
+INSTALL         Install cost expressions.
+REMOVE          Remove cost expressions.
+SHOW            Unparse showing results.
+EXPS            Print list of costing expressions.
+NAMES           Print list of expr names.
+INIT            Clear accumulated costing results.
+RESTART         Remove all CE's, clear name and CE list,
+                and clear any accumulated costing results.
+FLUSH           Do a RESTART and flush the entire costing
+                package.
+
+
+     Costing operators are  used  in  conjunction  with  the
+rewriting  package  wildcard  operators,  $$, ??, &$, &?, to
+form costing expressions.  Costing expressions are templates
+which  show  the  rewriting  package where to insert costing
+operators.  All costing operators are both prefix and  infix
+with  a  priority of 10, and in their prefix use, take @@ as
+their second argumnent by default.  Below are the  operators
+and the format in which they display their results.
+
+        /-              COSTEXP =: MIN<<AVG(VAR)<<MAX
+        /=              COSTEXP =: MIN<<AVG<<MAX
+        /#              COSTEXP =: AVG
+        />              COSTEXP =: SUM(COUNT)
+        /@              COSTEXP =: AVG AS PERCENT
+        /+              COSTEXP =: COUNT
+        /_              COSTEXP =: USER SPECIFIED
+
+The slash-underline or slash-backarrow operator  is  special
+in  several  ways.   Its associated data entry is a REF made
+available  to  the  user's  measuring  routine  trhough  the
+binding  --,  e.   g.   minus  minus,  and  it is the user's
+responsibility to provide some appropriate data object which
+the  REF  is to point to and to update its fields.  The user
+must also provide a print function for this data  object  to
+format its results.
+COST USER'S GUIDE                                    Page 11
+
+
+  Appendix C:  Algorithms and Data Format
+
+     The data base  for  the  costing  package  is  held  in
+COST\CURRENT\MODULE  which is a structure with the following
+fields:
+
+        IDS             List of EXPR names.
+        HT1             Hashtable for simple costing
+                        with numeric counts.
+        HT2             Hashtable for user costing
+                        with REFs for data.
+        CES             List of costing expressions.
+
+The data entries for the simple costing case stored  in  HT1
+are  structures  with fields, MIN, MAX, COUNT, SUM, and SUM2
+which are all real.  The COUNT field is the number of  times
+a  costed  expression  has  been executed.  The other fields
+refer to the  values  of  the  SUM  field.   The  SUM  field
+accumulates the values of the second argument to the costing
+expression.  The data entries for the user  case  stored  in
+HT2 are REFs or unrestricted pointers.  These REFs are given
+to the user's costing routine, e.  g.  the  second  argument
+to  /_, with the name --, and it is his responsibility to to
+allocate some appropriate data structure, and then to update
+its fields.
+
+     Rewriting  rules  are   constructed   from   the   cost
+expressions  provided  by  the user in the following manner.
+The left hand side or  searching  template  is  prepared  by
+removing   all   costing   operators  from  the  given  cost
+expression.  The right hand side or replacement  pattern  is
+just  a copy of the given costing expression.  Thus from the
+cost expression, ($$x ISIN ($$y /- CARD(@@))), the following
+rewriting rule is obtained.
+     ($$x ISIN $$y) <---> ($$x ISIN ($$y /- CARD(@@)))
+This rule is then given to the rewriting package to  perform
+the  actual  installation  of  the  costing  operator at the
+appropriate places in the EXPRs requested by the user.
+
+     Costing operators such as /- take as their  argument  a
+FORM  LISTED.   In  the above example, the argument would be
+the list, (y (CARD @@)).  The /-  operator  would  use  this
+list  as  its  key  into  the hash table which will hold the
+costing results, and then take the list apart to obtain  its
+actual  arguments.   Its  first  argument  is  the result of
+evaluating y which is then  bound  to  @@,  and  its  second
+argument  -  used to increment the sum field - is the result
+of evaluating the form (CARD @@) which is an application  of
+the  routine  CARD  to  the argument @@.  The result of this
+application is coerced to be a number  if  not  one  already
+with the following rules.  True is taken as 1, false as zero
+and any other numberic value as zero.  This number  is  then
+added  to  the  data  entry's  SUM field and used to set the
+other  fields  except  the  COUNT  field   which   is   just
+incremented by one.
+   
